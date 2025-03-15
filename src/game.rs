@@ -1,9 +1,8 @@
 use bevy::prelude::*;
+use bevy::window::PrimaryWindow;
 
 use crate::ant;
 pub struct GamePlugin;
-
-const X_EXTENT: f32 = 512.;
 
 impl Plugin for GamePlugin {
     fn build(&self, app: &mut App) {
@@ -13,35 +12,71 @@ impl Plugin for GamePlugin {
                     ant::AntPlugin,
                 )
             )
+            .add_systems(Startup, (setup_camera, setup_scene))
             .add_systems(Startup, setup_scene);
     }
 }
+
+fn setup_camera(
+    mut commands: Commands,
+    window_query: Query<&Window, With<PrimaryWindow>>,
+) {
+    let window = window_query.get_single().unwrap();
+    let width = window.width();
+    let height = window.height();
+    commands.spawn((
+        Camera2d, // New way to spawn a 2D camera
+        Camera {
+            order: 0, // Default camera order
+            ..default()
+        },
+        Projection::Orthographic(OrthographicProjection::default_2d()),
+        Transform::from_xyz(width / 2., height / 2., 0.0),
+    ));
+}
+
 fn setup_scene(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
+    window_query: Query<&Window, With<PrimaryWindow>>,
 ) {
-    commands.spawn(Camera2d);
+    
+    // Get the primary window dimensions
+    let window = window_query.get_single().unwrap();
+    let width = window.width();
+    let height = window.height();
 
+    // Create a shared material for all circles
+    let circle_material = materials.add(Color::srgb(1.0, 0.4, 0.0));
+    let circle_mesh = meshes.add(Circle::new(50.0));
+    
+    // Bottom-left corner
     commands.spawn((
-        Mesh2d(meshes.add(Circle::new(50.0))),
-        MeshMaterial2d(materials.add(Color::srgb(1.0 as f32, 0.4 as f32, 0.0 as f32))),
-        Transform::from_xyz( -X_EXTENT / 2., -X_EXTENT / 2., 0.0,),
+        Mesh2d(circle_mesh.clone()),
+        MeshMaterial2d(circle_material.clone()),
+        Transform::from_xyz(0., 0., 0.0),
     ));
+    
+    // Bottom-right corner
     commands.spawn((
-        Mesh2d(meshes.add(Circle::new(50.0))),
-        MeshMaterial2d(materials.add(Color::srgb(1.0 as f32, 0.4 as f32, 0.0 as f32))),
-        Transform::from_xyz( X_EXTENT / 2., -X_EXTENT / 2., 0.0,),
+        Mesh2d(circle_mesh.clone()),
+        MeshMaterial2d(circle_material.clone()),
+        Transform::from_xyz(width, 0., 0.0),
     ));
+
+    // Top-right corner
     commands.spawn((
-        Mesh2d(meshes.add(Circle::new(50.0))),
-        MeshMaterial2d(materials.add(Color::srgb(1.0 as f32, 0.4 as f32, 0.0 as f32))),
-        Transform::from_xyz( X_EXTENT / 2., X_EXTENT / 2., 0.0,),
+        Mesh2d(circle_mesh.clone()),
+        MeshMaterial2d(circle_material.clone()),
+        Transform::from_xyz(width, height, 0.0),
     ));
+
+    // Top-left corner
     commands.spawn((
-        Mesh2d(meshes.add(Circle::new(50.0))),
-        MeshMaterial2d(materials.add(Color::srgb(1.0 as f32, 0.4 as f32, 0.0 as f32))),
-        Transform::from_xyz( -X_EXTENT / 2., X_EXTENT / 2., 0.0,),
+        Mesh2d(circle_mesh),
+        MeshMaterial2d(circle_material),
+        Transform::from_xyz(0., height, 0.0),
     ));
 }
 

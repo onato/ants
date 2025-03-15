@@ -1,5 +1,7 @@
 use bevy::prelude::*;
 use rand::Rng;
+use crate::components::position::Position;
+use bevy::window::PrimaryWindow;
 
 pub struct AntPlugin;
 
@@ -20,19 +22,15 @@ pub struct Ant
 pub struct Direction {
     pub direction: Vec2,
 }
-#[derive(Component)]
-pub struct Position {
-    pub position: Vec2,
-}
 
 fn setup(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
 ) {
-    for _ in 0..2500 {
+    for _ in 0..4000 {
         commands.spawn((
-            Mesh2d(meshes.add(Circle::new(5.0))),
+            Mesh2d(meshes.add(Rectangle::new(1., 1.))),
             MeshMaterial2d(materials.add(Color::srgb(0.3 as f32, 1.0 as f32, 0.0 as f32))),
             Transform::from_xyz( 0., 0., 0.,),
             Ant { },
@@ -44,9 +42,12 @@ fn setup(
 pub fn ant_movement_system(
     mut commands : Commands,
     mut query: Query<(&mut Position, &mut Direction), With<Ant>>,
+    window_query: Query<&Window, With<PrimaryWindow>>,
 ) {
+    let window = window_query.get_single().unwrap();
+    let window_width = window.width();
+    let window_height = window.height();
     for (mut position, mut direction) in query.iter_mut() {
-        println!("{}", position.position);
         // Define the directions for "front", "front-left", and "front-right" based on the current direction
         let front = position.position + direction.direction;
         let front_left = position.position + rotate_vector(direction.direction, 45.0);
@@ -81,7 +82,11 @@ pub fn ant_movement_system(
 
         // Move the ant by 1 pixel in the chosen direction
         position.position += direction.direction;
-        println!("{}", position.position);
+        
+        // Wrap around the screen when ants go out of bounds
+        // rem_euclid ensures negative values wrap to the positive side
+        position.position.x = position.position.x.rem_euclid(window_width);
+        position.position.y = position.position.y.rem_euclid(window_height);
 
         // // Look for Food or Nest at the new position
         // let found_food_or_nest = pheromone_query.iter().any(|(pheromone_position, pheromone)| {

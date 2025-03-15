@@ -2,6 +2,7 @@ use bevy::prelude::*;
 
 pub mod ant;
 pub mod game;
+pub mod components;
 
 fn main() {
     App::new()
@@ -12,8 +13,9 @@ fn main() {
                 .set(WindowPlugin {
                     primary_window: Some(Window {
                         title: String::from("Space Invaders"),
-                        position: WindowPosition::Centered(MonitorSelection::Primary),
-                        resolution: Vec2::new(512., 512.).into(),
+                        position: WindowPosition::At(IVec2::ZERO),
+                        resolution: Vec2::new(1024., 768.).into(),
+                        resizable: false,
                         ..Default::default()
                     }),
                     ..Default::default()

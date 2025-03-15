@@ -1,7 +1,6 @@
 use bevy::prelude::*;
 
 #[derive(Component)]
-struct Position {
-    x: f32,
-    y: f32,
+pub struct Position {
+    pub position: Vec2,
 }
