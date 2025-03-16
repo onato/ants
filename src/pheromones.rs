@@ -6,8 +6,8 @@ use crate::ant::{Ant, AntGoal};
 use std::marker::PhantomData;
 
 // Constants
-const PHEROMONE_DECAY_RATE: f32 = 0.999; // 0.5% decay per frame
-const PHEROMONE_INCREMENT: f32 = 0.05; // Amount to increase per ant per frame
+const PHEROMONE_DECAY_RATE: f32 = 0.9999;
+const PHEROMONE_INCREMENT: f32 = 0.05;
 
 // Pheromone types
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
