@@ -2,7 +2,7 @@ use bevy::prelude::*;
 use bevy::window::PrimaryWindow;
 use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
 use crate::components::position::Position;
-use crate::ant::Ant;
+use crate::ant::{Ant, AntGoal};
 use std::marker::PhantomData;
 
 // Constants
@@ -133,7 +133,7 @@ trait PheromoneTypeInfo: Send + Sync {
 
 // Implement for Nest type
 impl PheromoneTypeInfo for Nest {
-    type QueryFilter = (With<Ant>, With<crate::pheromones::CarryingFood>);
+    type QueryFilter = (With<Ant>, With<AntGoal>, Without<CarryingFood>);
     
     fn color() -> PheromoneColor {
         PheromoneColor { r: 0, g: 0, b: 255 } // Blue for nest pheromones
@@ -142,7 +142,7 @@ impl PheromoneTypeInfo for Nest {
 
 // Implement for Food type
 impl PheromoneTypeInfo for Food {
-    type QueryFilter = (With<Ant>, Without<crate::pheromones::CarryingFood>);
+    type QueryFilter = (With<Ant>, With<CarryingFood>);
     
     fn color() -> PheromoneColor {
         PheromoneColor { r: 0, g: 255, b: 0 } // Green for food pheromones
