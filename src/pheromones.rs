@@ -2,6 +2,7 @@ use bevy::prelude::*;
 use bevy::window::PrimaryWindow;
 use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
 use crate::components::position::Position;
+use crate::components::carrying_food::CarryingFood;
 use crate::ant::Ant;
 use crate::systems::setup_pheromone_texture::setup_pheromone_texture;
 use std::marker::PhantomData;
@@ -73,10 +74,6 @@ fn setup_pheromone_grid<T: Send + Sync + 'static>(
     grid_inner.width = width;
     grid_inner.height = height;
 }
-
-// Component to mark ants that are carrying food
-#[derive(Component)]
-pub struct CarryingFood;
 
 // Trait to get query filter and color for each pheromone type
 trait PheromoneTypeInfo: Send + Sync {

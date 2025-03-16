@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 use rand::Rng;
 use crate::components::position::Position;
-use crate::components::ant_goal::AntGoal;
+use crate::components::carrying_food::CarryingFood;
 use crate::components::reset_lifetime::ResetLifetime;
 use bevy::window::PrimaryWindow;
 use crate::systems::ant_rebirth_system::ant_rebirth_system;
@@ -51,7 +51,6 @@ fn setup(
             Ant { 
                 lifetime: Timer::new(Duration::from_secs_f32(lifetime_secs), TimerMode::Once),
             },
-            AntGoal::Food, // Initially set to Food goal
             Position { position: Vec2::new(0.0, 0.0) }, // Initial position
             Direction { direction: Vec2::new(1.0, 0.0) },
         ));
@@ -60,7 +59,7 @@ fn setup(
 // System for handling ant goals (finding food or returning to nest)
 pub fn ant_goal_system(
     mut commands: Commands,
-    mut query: Query<(Entity, &Position, &mut AntGoal), With<Ant>>,
+    mut query: Query<(Entity, &Position, Option<&CarryingFood>), With<Ant>>,
     food_positions: Query<&Transform, With<Food>>,
 ) {
     // Collect food positions into a Vec to avoid query conflicts
@@ -69,9 +68,8 @@ pub fn ant_goal_system(
         .map(|transform| Vec2::new(transform.translation.x, transform.translation.y))
         .collect();
         
-    for (entity, position, mut ant_goal) in query.iter_mut() {
-        match *ant_goal {
-            AntGoal::Food => {
+    for (entity, position, carrying_food) in query.iter_mut() {
+        if carrying_food.is_none() {
                 // Check if ant found food
                 let found_food = food_positions.iter().any(|&food_pos| 
                     food_pos.distance(position.position) < 5.0
@@ -79,39 +77,36 @@ pub fn ant_goal_system(
                 
                 if found_food {
                     // Change goal to return to nest
-                    *ant_goal = AntGoal::Nest;
+                    commands.entity(entity).insert(CarryingFood);
                     // Reset lifetime when finding food
                     commands.entity(entity).insert(ResetLifetime);
                 }
-            },
-            AntGoal::Nest => {
+        } else {
                 // Check if ant reached the nest
                 let reached_nest = position.position.length() < 10.0;
                 
                 if reached_nest {
                     // Change goal back to finding food
-                    *ant_goal = AntGoal::Food;
+                    commands.entity(entity).remove::<CarryingFood>();
                 }
             }
         }
     }
-}
 
 // System for ant movement based on pheromone trails
 pub fn ant_movement_system(
-    mut query: Query<(&mut Position, &mut Direction, &AntGoal), With<Ant>>,
+    mut query: Query<(&mut Position, &mut Direction, Option<&CarryingFood>), With<Ant>>,
     window_query: Query<&Window, With<PrimaryWindow>>,
     food_pheromones: Res<crate::pheromones::PheromoneGrid<crate::pheromones::Food>>,
     nest_pheromones: Res<crate::pheromones::PheromoneGrid<crate::pheromones::Nest>>,
 ) {
-    for (mut position, mut direction, ant_goal) in query.iter_mut() {
+    for (mut position, mut direction, carrying_food) in query.iter_mut() {
         // Define the directions for "front", "front-left", and "front-right" based on the current direction
         let front = position.position + direction.direction;
         let front_left = position.position + rotate_vector(direction.direction, 45.0);
         let front_right = position.position + rotate_vector(direction.direction, -45.0);
 
-        // Get pheromone values at the three positions based on current goal
-        let (pheromone_front, pheromone_left, pheromone_right) = if *ant_goal == AntGoal::Food {
+        let (pheromone_front, pheromone_left, pheromone_right) = if carrying_food.is_none() {
             (
                 get_pheromone_value(front, &food_pheromones),
                 get_pheromone_value(front_left, &food_pheromones),
@@ -184,25 +179,20 @@ pub fn ant_movement_system(
 // System to handle resetting ant lifetimes
 pub fn ant_lifetime_reset_system(
     mut commands: Commands,
-    mut ant_query: Query<(Entity, &mut Ant, &mut AntGoal)>,
+    mut ant_query: Query<(Entity, &mut Ant)>,
     reset_query: Query<Entity, With<ResetLifetime>>,
 ) {
     for entity in reset_query.iter() {
-        if let Ok((_, mut ant, mut ant_goal)) = ant_query.get_mut(entity) {
+        if let Ok((_, mut ant)) = ant_query.get_mut(entity) {
             // Reset lifetime
             let mut rng = rand::thread_rng();
             let new_lifetime = rng.gen_range(30.0..60.0);
             ant.lifetime = Timer::new(Duration::from_secs_f32(new_lifetime), TimerMode::Once);
             
-            // Only reset goal to Food if the ant reached the nest
-            // (we don't want to change the goal if the ant just found food)
-            if *ant_goal == AntGoal::Nest {
-                // We'll check if the ant is at the nest by its position in a separate query
-                *ant_goal = AntGoal::Food;
-            }
         }
         // Remove the reset marker
         commands.entity(entity).remove::<ResetLifetime>();
+        commands.entity(entity).remove::<CarryingFood>();
     }
 }
 
