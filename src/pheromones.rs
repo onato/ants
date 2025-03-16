@@ -87,12 +87,15 @@ fn setup_food_pheromone_grid(
     setup_pheromone_grid(pheromone_grid, window_query);
 }
 
-fn setup_nest_pheromone_texture(
+// Generic function to setup pheromone textures
+fn setup_pheromone_texture<T>(
     mut commands: Commands,
-    mut pheromone_grid: ResMut<NestPheromoneGrid>,
+    mut pheromone_grid: ResMut<T>,
     mut images: ResMut<Assets<Image>>,
     window_query: Query<&Window, With<PrimaryWindow>>,
-) {
+) where 
+    T: Resource + PheromoneGridTexture,
+{
     let window = window_query.get_single().unwrap();
     let width = window.width() as u32;
     let height = window.height() as u32;
@@ -118,7 +121,7 @@ fn setup_nest_pheromone_texture(
     let texture_handle = images.add(texture);
     
     // Store the handle in the resource
-    pheromone_grid.texture_handle = Some(texture_handle.clone());
+    pheromone_grid.set_texture_handle(Some(texture_handle.clone()));
     
     // Spawn the sprite entity and store its entity ID
     let entity = commands.spawn((
@@ -131,54 +134,25 @@ fn setup_nest_pheromone_texture(
     )).id();
 
     // Store the entity ID in the resource
-    pheromone_grid.texture_entity = Some(entity);
+    pheromone_grid.set_texture_entity(Some(entity));
+}
+
+fn setup_nest_pheromone_texture(
+    commands: Commands,
+    pheromone_grid: ResMut<NestPheromoneGrid>,
+    images: ResMut<Assets<Image>>,
+    window_query: Query<&Window, With<PrimaryWindow>>,
+) {
+    setup_pheromone_texture(commands, pheromone_grid, images, window_query);
 }
 
 fn setup_food_pheromone_texture(
-    mut commands: Commands,
-    mut pheromone_grid: ResMut<FoodPheromoneGrid>,
-    mut images: ResMut<Assets<Image>>,
+    commands: Commands,
+    pheromone_grid: ResMut<FoodPheromoneGrid>,
+    images: ResMut<Assets<Image>>,
     window_query: Query<&Window, With<PrimaryWindow>>,
 ) {
-    let window = window_query.get_single().unwrap();
-    let width = window.width() as u32;
-    let height = window.height() as u32;
-    
-    // Create a new image
-    let mut texture = Image::new_fill(
-        Extent3d {
-            width,
-            height,
-            depth_or_array_layers: 1,
-        },
-        TextureDimension::D2,
-        &[0, 0, 0, 255], // Initial color (black with full alpha)
-        TextureFormat::Rgba8Unorm,
-        bevy::render::render_asset::RenderAssetUsages::RENDER_WORLD,
-    );
-    
-    // Set texture to be filtered in nearest mode and allow it to be updated
-    texture.texture_descriptor.usage = bevy::render::render_resource::TextureUsages::TEXTURE_BINDING
-        | bevy::render::render_resource::TextureUsages::COPY_DST;
-    
-    // Add the texture to the assets
-    let texture_handle = images.add(texture);
-    
-    // Store the handle in the resource
-    pheromone_grid.texture_handle = Some(texture_handle.clone());
-    
-    // Spawn the sprite entity and store its entity ID
-    let entity = commands.spawn((
-        Sprite::from_image(texture_handle.clone()),
-        Transform {
-            translation: Vec3::new((width as f32) / 2., (height as f32) / 2., 0.0),
-            scale: Vec3::ONE,
-            ..default()
-        },
-    )).id();
-
-    // Store the entity ID in the resource
-    pheromone_grid.texture_entity = Some(entity);
+    setup_pheromone_texture(commands, pheromone_grid, images, window_query);
 }
 
 // Component to mark ants that are carrying food
@@ -309,6 +283,12 @@ trait PheromoneGridSetup {
     fn set_dimensions(&mut self, width: usize, height: usize);
 }
 
+// Trait for handling pheromone textures
+trait PheromoneGridTexture {
+    fn set_texture_handle(&mut self, handle: Option<Handle<Image>>);
+    fn set_texture_entity(&mut self, entity: Option<Entity>);
+}
+
 // Trait to allow generic access to pheromone grid properties
 trait PheromoneGridTrait {
     fn width(&self) -> usize;
@@ -327,6 +307,17 @@ impl PheromoneGridSetup for NestPheromoneGrid {
     fn set_dimensions(&mut self, width: usize, height: usize) {
         self.width = width;
         self.height = height;
+    }
+}
+
+// Implement the texture trait for NestPheromoneGrid
+impl PheromoneGridTexture for NestPheromoneGrid {
+    fn set_texture_handle(&mut self, handle: Option<Handle<Image>>) {
+        self.texture_handle = handle;
+    }
+    
+    fn set_texture_entity(&mut self, entity: Option<Entity>) {
+        self.texture_entity = entity;
     }
 }
 
@@ -362,6 +353,17 @@ impl PheromoneGridSetup for FoodPheromoneGrid {
     fn set_dimensions(&mut self, width: usize, height: usize) {
         self.width = width;
         self.height = height;
+    }
+}
+
+// Implement the texture trait for FoodPheromoneGrid
+impl PheromoneGridTexture for FoodPheromoneGrid {
+    fn set_texture_handle(&mut self, handle: Option<Handle<Image>>) {
+        self.texture_handle = handle;
+    }
+    
+    fn set_texture_entity(&mut self, entity: Option<Entity>) {
+        self.texture_entity = entity;
     }
 }
 
