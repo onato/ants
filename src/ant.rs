@@ -1,12 +1,12 @@
 use bevy::prelude::*;
+use bevy::window::PrimaryWindow;
 use rand::Rng;
+use std::time::Duration;
 use crate::components::position::Position;
 use crate::components::carrying_food::CarryingFood;
 use crate::components::reset_lifetime::ResetLifetime;
-use bevy::window::PrimaryWindow;
 use crate::systems::ant_rebirth_system::ant_rebirth_system;
 use crate::food::Food;
-use std::time::Duration;
 
 pub struct AntPlugin;
 
@@ -16,7 +16,7 @@ impl Plugin for AntPlugin {
             .add_systems(Startup, setup)
             .add_systems(Update,(
                 ant_goal_system,
-                ant_movement_system,
+                follow_pheromones_system,
                 ant_rebirth_system,
                 ant_lifetime_reset_system,
                 sync_transform_with_position
@@ -67,34 +67,34 @@ pub fn ant_goal_system(
         .iter()
         .map(|transform| Vec2::new(transform.translation.x, transform.translation.y))
         .collect();
-        
+
     for (entity, position, carrying_food) in query.iter_mut() {
         if carrying_food.is_none() {
-                // Check if ant found food
-                let found_food = food_positions.iter().any(|&food_pos| 
-                    food_pos.distance(position.position) < 5.0
-                );
-                
-                if found_food {
-                    // Change goal to return to nest
-                    commands.entity(entity).insert(CarryingFood);
-                    // Reset lifetime when finding food
-                    commands.entity(entity).insert(ResetLifetime);
-                }
+            // Check if ant found food
+            let found_food = food_positions.iter().any(|&food_pos| 
+                food_pos.distance(position.position) < 5.0
+            );
+            
+            if found_food {
+                // Change goal to return to nest
+                commands.entity(entity).insert(CarryingFood);
+                // Reset lifetime when finding food
+                commands.entity(entity).insert(ResetLifetime);
+            }
         } else {
-                // Check if ant reached the nest
-                let reached_nest = position.position.length() < 10.0;
-                
-                if reached_nest {
-                    // Change goal back to finding food
-                    commands.entity(entity).remove::<CarryingFood>();
-                }
+            // Check if ant reached the nest
+            let reached_nest = position.position.length() < 10.0;
+            
+            if reached_nest {
+                // Change goal back to finding food
+                commands.entity(entity).remove::<CarryingFood>();
             }
         }
     }
+}
 
 // System for ant movement based on pheromone trails
-pub fn ant_movement_system(
+pub fn follow_pheromones_system(
     mut query: Query<(&mut Position, &mut Direction, Option<&CarryingFood>), With<Ant>>,
     window_query: Query<&Window, With<PrimaryWindow>>,
     food_pheromones: Res<crate::pheromones::PheromoneGrid<crate::pheromones::Food>>,
@@ -123,9 +123,9 @@ pub fn ant_movement_system(
         // Decision-making for movement direction
         let mut rng = rand::thread_rng();
         
-        let cutoff = 0.001;
+        let cutoff = 0.01;
         // Base direction decision on pheromones
-        let base_direction = if pheromone_front > cutoff && pheromone_front >= pheromone_left && pheromone_front >= pheromone_right {
+        let best_direction = if pheromone_front > cutoff && pheromone_front >= pheromone_left && pheromone_front >= pheromone_right {
             // Follow strongest pheromone trail - front has highest concentration
             front - position.position
         } else if pheromone_left > cutoff && pheromone_left >= pheromone_right {
@@ -154,13 +154,13 @@ pub fn ant_movement_system(
         // Apply small random deviation to direction
         let random_angle = rng.gen_range(-15_f32.to_radians()..15_f32.to_radians());
         let random_direction = Vec2::new(
-            base_direction.x * random_angle.cos() - base_direction.y * random_angle.sin(),
-            base_direction.x * random_angle.sin() + base_direction.y * random_angle.cos()
+            best_direction.x * random_angle.cos() - best_direction.y * random_angle.sin(),
+            best_direction.x * random_angle.sin() + best_direction.y * random_angle.cos()
         );
         
         // Combine base direction with randomness
         direction.direction = (
-            base_direction * randomness_factor 
+            best_direction * randomness_factor 
             + random_direction * (1.0 - randomness_factor)
         ).normalize();
 
@@ -175,24 +175,17 @@ pub fn ant_movement_system(
     }
 }
 
-
 // System to handle resetting ant lifetimes
 pub fn ant_lifetime_reset_system(
     mut commands: Commands,
-    mut ant_query: Query<(Entity, &mut Ant)>,
-    reset_query: Query<Entity, With<ResetLifetime>>,
+    mut ant_query: Query<(Entity, &mut Ant), With<ResetLifetime>>,
 ) {
-    for entity in reset_query.iter() {
-        if let Ok((_, mut ant)) = ant_query.get_mut(entity) {
-            // Reset lifetime
-            let mut rng = rand::thread_rng();
-            let new_lifetime = rng.gen_range(30.0..60.0);
-            ant.lifetime = Timer::new(Duration::from_secs_f32(new_lifetime), TimerMode::Once);
+    for (entity, mut ant) in ant_query.iter_mut() {
+        let mut rng = rand::thread_rng();
+        let new_lifetime = rng.gen_range(30.0..120.0);
+        ant.lifetime = Timer::new(Duration::from_secs_f32(new_lifetime), TimerMode::Once);
             
-        }
-        // Remove the reset marker
         commands.entity(entity).remove::<ResetLifetime>();
-        commands.entity(entity).remove::<CarryingFood>();
     }
 }
 
