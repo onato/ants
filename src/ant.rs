@@ -25,14 +25,14 @@ pub struct Direction {
 
 fn setup(
     mut commands: Commands,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<ColorMaterial>>,
+    // mut meshes: ResMut<Assets<Mesh>>,
+    // mut materials: ResMut<Assets<ColorMaterial>>,
 ) {
     for _ in 0..4000 {
         commands.spawn((
-            Mesh2d(meshes.add(Rectangle::new(1., 1.))),
-            MeshMaterial2d(materials.add(Color::srgb(0.3 as f32, 1.0 as f32, 0.0 as f32))),
-            Transform::from_xyz( 0., 0., 0.,),
+            // Mesh2d(meshes.add(Rectangle::new(1., 1.))),
+            // MeshMaterial2d(materials.add(Color::srgb(0.3 as f32, 1.0 as f32, 0.0 as f32))),
+            // Transform::from_xyz( 0., 0., 0.,),
             Ant { },
             Position { position: Vec2::new(0.0, 0.0) }, // Initial position
             Direction { direction: Vec2::new(1.0, 0.0) },
@@ -40,7 +40,6 @@ fn setup(
     }
 }
 pub fn ant_movement_system(
-    mut commands : Commands,
     mut query: Query<(&mut Position, &mut Direction), With<Ant>>,
     window_query: Query<&Window, With<PrimaryWindow>>,
 ) {
@@ -49,9 +48,9 @@ pub fn ant_movement_system(
     let window_height = window.height();
     for (mut position, mut direction) in query.iter_mut() {
         // Define the directions for "front", "front-left", and "front-right" based on the current direction
-        let front = position.position + direction.direction;
-        let front_left = position.position + rotate_vector(direction.direction, 45.0);
-        let front_right = position.position + rotate_vector(direction.direction, -45.0);
+        // let front = position.position + direction.direction;
+        // let front_left = position.position + rotate_vector(direction.direction, 45.0);
+        // let front_right = position.position + rotate_vector(direction.direction, -45.0);
 
         // // Check for pheromones in these directions
         // let pheromone_in_front = pheromone_query.iter().any(|(pheromone_position, _)| pheromone_position.position == front);
@@ -114,14 +113,14 @@ fn sync_transform_with_position(
     }
 }
 
-// Utility function to rotate a vector by an angle (in degrees)
-fn rotate_vector(vec: Vec2, angle_deg: f32) -> Vec2 {
-    let angle_rad = angle_deg.to_radians();
-    let cos_angle = angle_rad.cos();
-    let sin_angle = angle_rad.sin();
-
-    Vec2::new(
-        vec.x * cos_angle - vec.y * sin_angle,
-        vec.x * sin_angle + vec.y * cos_angle,
-    )
-}
+// // Utility function to rotate a vector by an angle (in degrees)
+// fn rotate_vector(vec: Vec2, angle_deg: f32) -> Vec2 {
+//     let angle_rad = angle_deg.to_radians();
+//     let cos_angle = angle_rad.cos();
+//     let sin_angle = angle_rad.sin();
+//
+//     Vec2::new(
+//         vec.x * cos_angle - vec.y * sin_angle,
+//         vec.x * sin_angle + vec.y * cos_angle,
+//     )
+// }

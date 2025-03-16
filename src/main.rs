@@ -3,6 +3,7 @@ use bevy::prelude::*;
 pub mod ant;
 pub mod game;
 pub mod components;
+pub mod pheromones;
 
 fn main() {
     App::new()

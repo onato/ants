@@ -1,7 +1,6 @@
 use bevy::prelude::*;
 use bevy::window::PrimaryWindow;
 
-use crate::ant;
 pub struct GamePlugin;
 
 impl Plugin for GamePlugin {
@@ -9,7 +8,8 @@ impl Plugin for GamePlugin {
         app
             .add_plugins(
                 (
-                    ant::AntPlugin,
+                    crate::ant::AntPlugin,
+                    crate::pheromones::PheromonePlugin,
                 )
             )
             .add_systems(Startup, (setup_camera, setup_scene))
