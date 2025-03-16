@@ -4,6 +4,11 @@ use crate::components::position::Position;
 use bevy::window::PrimaryWindow;
 use crate::food::Food;
 use crate::pheromones::CarryingFood;
+use std::time::Duration;
+
+// Marker component to indicate an ant's lifetime should be reset
+#[derive(Component)]
+pub struct ResetLifetime;
 
 pub struct AntPlugin;
 
@@ -14,6 +19,8 @@ impl Plugin for AntPlugin {
             .add_systems(Update,(
                 ant_goal_system,
                 ant_movement_system,
+                ant_lifetime_check_system,
+                ant_lifetime_reset_system,
                 sync_transform_with_position
             ));
     }
@@ -27,6 +34,7 @@ pub enum AntGoal {
 
 #[derive(Component)]
 pub struct Ant {
+    pub lifetime: Timer,
 }
 
 #[derive(Component)]
@@ -40,11 +48,17 @@ fn setup(
     // mut materials: ResMut<Assets<ColorMaterial>>,
 ) {
     for _ in 0..4000 {
+        let mut rng = rand::thread_rng();
+        // Random lifetime between 30 and 60 seconds
+        let lifetime_secs = rng.gen_range(30.0..120.0);
+        
         commands.spawn((
             // Mesh2d(meshes.add(Rectangle::new(1., 1.))),
             // MeshMaterial2d(materials.add(Color::srgb(0.3 as f32, 1.0 as f32, 0.0 as f32))),
             // Transform::from_xyz( 0., 0., 0.,),
-            Ant { },
+            Ant { 
+                lifetime: Timer::new(Duration::from_secs_f32(lifetime_secs), TimerMode::Once),
+            },
             AntGoal::Food, // Initially set to Food goal
             Position { position: Vec2::new(0.0, 0.0) }, // Initial position
             Direction { direction: Vec2::new(1.0, 0.0) },
@@ -76,6 +90,8 @@ pub fn ant_goal_system(
                     *ant_goal = AntGoal::Nest;
                     // Mark the ant as carrying food
                     commands.entity(entity).insert(CarryingFood);
+                    // Reset lifetime when finding food
+                    commands.entity(entity).insert(ResetLifetime);
                 }
             },
             AntGoal::Nest => {
@@ -87,6 +103,10 @@ pub fn ant_goal_system(
                     *ant_goal = AntGoal::Food;
                     // Remove the carrying food component
                     commands.entity(entity).remove::<CarryingFood>();
+                    
+                    // We need to handle the lifetime reset in the ant_lifetime_system
+                    // since we can't access the Ant component from this query
+                    commands.entity(entity).insert(ResetLifetime);
                 }
             }
         }
@@ -191,6 +211,55 @@ pub fn ant_movement_system(
         // rem_euclid ensures negative values wrap to the positive side
         position.position.x = position.position.x.rem_euclid(window_width);
         position.position.y = position.position.y.rem_euclid(window_height);
+    }
+}
+
+// System to check ant lifetimes and handle expiration
+pub fn ant_lifetime_check_system(
+    mut commands: Commands,
+    time: Res<Time>,
+    mut ant_query: Query<(Entity, &mut Ant, &mut AntGoal, &mut Position)>,
+) {
+    for (entity, mut ant, mut ant_goal, mut position) in ant_query.iter_mut() {
+        // Update the lifetime timer
+        ant.lifetime.tick(time.delta());
+        
+        // Check if lifetime has expired
+        if ant.lifetime.finished() {
+            // Reset position to nest (0,0)
+            position.position = Vec2::new(0.0, 0.0);
+            
+            // Change goal to Nest
+            *ant_goal = AntGoal::Nest;
+            
+            // Remove CarryingFood if present
+            commands.entity(entity).remove::<CarryingFood>();
+        }
+    }
+}
+
+// System to handle resetting ant lifetimes
+pub fn ant_lifetime_reset_system(
+    mut commands: Commands,
+    mut ant_query: Query<(Entity, &mut Ant, &mut AntGoal)>,
+    reset_query: Query<Entity, With<ResetLifetime>>,
+) {
+    for entity in reset_query.iter() {
+        if let Ok((_, mut ant, mut ant_goal)) = ant_query.get_mut(entity) {
+            // Reset lifetime
+            let mut rng = rand::thread_rng();
+            let new_lifetime = rng.gen_range(30.0..60.0);
+            ant.lifetime = Timer::new(Duration::from_secs_f32(new_lifetime), TimerMode::Once);
+            
+            // Only reset goal to Food if the ant reached the nest
+            // (we don't want to change the goal if the ant just found food)
+            if *ant_goal == AntGoal::Nest {
+                // We'll check if the ant is at the nest by its position in a separate query
+                *ant_goal = AntGoal::Food;
+            }
+        }
+        // Remove the reset marker
+        commands.entity(entity).remove::<ResetLifetime>();
     }
 }
 

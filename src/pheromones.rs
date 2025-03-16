@@ -136,7 +136,7 @@ impl PheromoneTypeInfo for Nest {
     type QueryFilter = (With<Ant>, With<AntGoal>, Without<CarryingFood>);
     
     fn color() -> PheromoneColor {
-        PheromoneColor { r: 0, g: 0, b: 255 } // Blue for nest pheromones
+        PheromoneColor { r: 0, g: 0, b: 255, a: 255 } // Blue for nest pheromones
     }
 }
 
@@ -145,7 +145,7 @@ impl PheromoneTypeInfo for Food {
     type QueryFilter = (With<Ant>, With<CarryingFood>);
     
     fn color() -> PheromoneColor {
-        PheromoneColor { r: 0, g: 255, b: 0 } // Green for food pheromones
+        PheromoneColor { r: 0, g: 255, b: 0, a: 255 } // Green for food pheromones
     }
 }
 
@@ -183,6 +183,7 @@ struct PheromoneColor {
     r: u8,
     g: u8,
     b: u8,
+    a: u8,
 }
 
 // Generic function to update pheromone textures
@@ -223,7 +224,7 @@ fn update_pheromone_texture<T: Send + Sync + 'static + PheromoneTypeInfo>(
                 data[pixel_index] = (color.r as u16 * intensity as u16 / 255) as u8;       // R
                 data[pixel_index + 1] = (color.g as u16 * intensity as u16 / 255) as u8;   // G
                 data[pixel_index + 2] = (color.b as u16 * intensity as u16 / 255) as u8;   // B
-                data[pixel_index + 3] = intensity;                   // A (semi-transparent based on intensity)
+                data[pixel_index + 3] = (color.a as u16 * intensity as u16 / 255) as u8;   // A
             }
         }
     }
