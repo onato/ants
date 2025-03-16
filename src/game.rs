@@ -9,6 +9,7 @@ impl Plugin for GamePlugin {
             .add_plugins(
                 (
                     crate::ant::AntPlugin,
+                    crate::food::FoodPlugin,
                     crate::pheromones::PheromonePlugin,
                 )
             )

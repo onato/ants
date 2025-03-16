@@ -1,6 +1,7 @@
 use bevy::prelude::*;
 
 pub mod ant;
+pub mod food;
 pub mod game;
 pub mod components;
 pub mod pheromones;
