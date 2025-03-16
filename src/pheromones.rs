@@ -245,12 +245,22 @@ fn update_food_pheromone_grid(
     }
 }
 
-fn update_nest_pheromone_texture(
+// Helper struct to define pheromone color channels
+struct PheromoneColor {
+    r: u8,
+    g: u8,
+    b: u8,
+}
+
+// Generic function to update pheromone textures
+fn update_pheromone_texture<T: Resource + PheromoneGridTrait>(
     mut commands: Commands,
-    pheromone_grid: Res<NestPheromoneGrid>,
+    pheromone_grid: Res<T>,
     mut images: ResMut<Assets<Image>>,
     window_query: Query<&Window, With<PrimaryWindow>>,
-) {
+    color: PheromoneColor,
+)
+{
     // Create a new texture each frame instead of trying to modify the existing one
     let window = window_query.get_single().unwrap();
     let width = window.width() as u32;
@@ -260,24 +270,24 @@ fn update_nest_pheromone_texture(
     let mut data = vec![0u8; (width * height * 4) as usize];
     
     // Fill the texture data based on the grid values
-    for y in 0..pheromone_grid.height.min(height as usize) {
-        for x in 0..pheromone_grid.width.min(width as usize) {
+    for y in 0..pheromone_grid.height().min(height as usize) {
+        for x in 0..pheromone_grid.width().min(width as usize) {
             // Get the pheromone value at this position
-            let pheromone_value = pheromone_grid.grid[x][y];
+            let pheromone_value = pheromone_grid.get_value(x, y);
             
-            // Convert to a color (blue intensity for nest pheromones)
+            // Convert to a color intensity based on pheromone level
             let intensity = (pheromone_value * 255.0).min(255.0) as u8;
             
             // Calculate the pixel index in the texture data
             // Flip y-coordinate to match screen coordinates (0,0 at top-left)
             let pixel_index = (((height as usize - 1 - y) as u32 * width + x as u32) * 4) as usize;
             
-            // Set the pixel color (RGBA) - Blue for nest pheromones
+            // Set the pixel color (RGBA) with the specified color channels
             if pixel_index + 3 < data.len() {
-                data[pixel_index] = 0;           // R
-                data[pixel_index + 1] = 0;       // G
-                data[pixel_index + 2] = intensity; // B
-                data[pixel_index + 3] = intensity; // A (semi-transparent based on intensity)
+                data[pixel_index] = (color.r as u16 * intensity as u16 / 255) as u8;       // R
+                data[pixel_index + 1] = (color.g as u16 * intensity as u16 / 255) as u8;   // G
+                data[pixel_index + 2] = (color.b as u16 * intensity as u16 / 255) as u8;   // B
+                data[pixel_index + 3] = intensity;                   // A (semi-transparent based on intensity)
             }
         }
     }
@@ -300,69 +310,85 @@ fn update_nest_pheromone_texture(
         | bevy::render::render_resource::TextureUsages::COPY_DST;
     
     // Add the new texture to assets and update the sprite
-    if let Some(entity) = pheromone_grid.texture_entity {
+    if let Some(entity) = pheromone_grid.texture_entity() {
         let new_handle = images.add(new_texture);
         commands.entity(entity).insert(Sprite::from_image(new_handle));
     }
 }
 
-fn update_food_pheromone_texture(
-    mut commands: Commands,
-    pheromone_grid: Res<FoodPheromoneGrid>,
-    mut images: ResMut<Assets<Image>>,
+// Trait to allow generic access to pheromone grid properties
+trait PheromoneGridTrait {
+    fn width(&self) -> usize;
+    fn height(&self) -> usize;
+    fn get_value(&self, x: usize, y: usize) -> f32;
+    fn texture_entity(&self) -> Option<Entity>;
+}
+
+// Implement the trait for NestPheromoneGrid
+impl PheromoneGridTrait for NestPheromoneGrid {
+    fn width(&self) -> usize {
+        self.width
+    }
+    
+    fn height(&self) -> usize {
+        self.height
+    }
+    
+    fn get_value(&self, x: usize, y: usize) -> f32 {
+        self.grid[x][y]
+    }
+    
+    fn texture_entity(&self) -> Option<Entity> {
+        self.texture_entity
+    }
+}
+
+// Implement the trait for FoodPheromoneGrid
+impl PheromoneGridTrait for FoodPheromoneGrid {
+    fn width(&self) -> usize {
+        self.width
+    }
+    
+    fn height(&self) -> usize {
+        self.height
+    }
+    
+    fn get_value(&self, x: usize, y: usize) -> f32 {
+        self.grid[x][y]
+    }
+    
+    fn texture_entity(&self) -> Option<Entity> {
+        self.texture_entity
+    }
+}
+
+// Wrapper functions that call the generic function with the appropriate color
+fn update_nest_pheromone_texture(
+    commands: Commands,
+    pheromone_grid: Res<NestPheromoneGrid>,
+    images: ResMut<Assets<Image>>,
     window_query: Query<&Window, With<PrimaryWindow>>,
 ) {
-    // Create a new texture each frame instead of trying to modify the existing one
-    let window = window_query.get_single().unwrap();
-    let width = window.width() as u32;
-    let height = window.height() as u32;
-    
-    // Create a new image with the current pheromone data
-    let mut data = vec![0u8; (width * height * 4) as usize];
-    
-    // Fill the texture data based on the grid values
-    for y in 0..pheromone_grid.height.min(height as usize) {
-        for x in 0..pheromone_grid.width.min(width as usize) {
-            // Get the pheromone value at this position
-            let pheromone_value = pheromone_grid.grid[x][y];
-            
-            // Convert to a color (green intensity for food pheromones)
-            let intensity = (pheromone_value * 255.0).min(255.0) as u8;
-            
-            // Calculate the pixel index in the texture data
-            // Flip y-coordinate to match screen coordinates (0,0 at top-left)
-            let pixel_index = (((height as usize - 1 - y) as u32 * width + x as u32) * 4) as usize;
-            
-            // Set the pixel color (RGBA) - Green for food pheromones
-            if pixel_index + 3 < data.len() {
-                data[pixel_index] = 0;           // R
-                data[pixel_index + 1] = intensity; // G
-                data[pixel_index + 2] = 0;       // B
-                data[pixel_index + 3] = intensity; // A (semi-transparent based on intensity)
-            }
-        }
-    }
-    
-    // Create a new texture with the updated data
-    let mut new_texture = Image::new_fill(
-        Extent3d {
-            width,
-            height,
-            depth_or_array_layers: 1,
-        },
-        TextureDimension::D2,
-        &data,
-        TextureFormat::Rgba8Unorm,
-        bevy::render::render_asset::RenderAssetUsages::RENDER_WORLD,
+    update_pheromone_texture(
+        commands,
+        pheromone_grid,
+        images,
+        window_query,
+        PheromoneColor { r: 0, g: 0, b: 255 }, // Blue for nest pheromones
     );
-    
-    // Set texture properties
-    new_texture.texture_descriptor.usage = bevy::render::render_resource::TextureUsages::TEXTURE_BINDING
-        | bevy::render::render_resource::TextureUsages::COPY_DST;
-    
-    // Add the new texture to assets and update the sprite
-    if let Some(entity) = pheromone_grid.texture_entity {
-        let new_handle = images.add(new_texture);
-        commands.entity(entity).insert(Sprite::from_image(new_handle));
-    }
+}
+
+fn update_food_pheromone_texture(
+    commands: Commands,
+    pheromone_grid: Res<FoodPheromoneGrid>,
+    images: ResMut<Assets<Image>>,
+    window_query: Query<&Window, With<PrimaryWindow>>,
+) {
+    update_pheromone_texture(
+        commands,
+        pheromone_grid,
+        images,
+        window_query,
+        PheromoneColor { r: 0, g: 255, b: 0 }, // Green for food pheromones
+    );
 }
