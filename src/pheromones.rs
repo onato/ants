@@ -4,6 +4,10 @@ use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
 use crate::components::position::Position;
 use crate::ant::Ant;
 
+// Constants
+const PHEROMONE_DECAY_RATE: f32 = 0.995; // 0.5% decay per frame
+const PHEROMONE_INCREMENT: f32 = 0.01; // Amount to increase per ant per frame
+
 pub struct PheromonePlugin;
 
 impl Plugin for PheromonePlugin {
@@ -101,7 +105,7 @@ fn update_pheromone_grid(
             .clamp(0, pheromone_grid.height.saturating_sub(1));
         
         // Increase pheromone level at this position
-        pheromone_grid.grid[grid_x][grid_y] += 0.01; // Increased for better visibility
+        pheromone_grid.grid[grid_x][grid_y] += PHEROMONE_INCREMENT;
         
         // Optional: Cap the maximum pheromone level
         if pheromone_grid.grid[grid_x][grid_y] > 1.0 {
@@ -112,7 +116,7 @@ fn update_pheromone_grid(
     // Optional: Add pheromone decay over time
     for x in 0..pheromone_grid.width {
         for y in 0..pheromone_grid.height {
-            pheromone_grid.grid[x][y] *= 0.995; // Slower decay for better visibility
+            pheromone_grid.grid[x][y] *= PHEROMONE_DECAY_RATE; // Slower decay for better visibility
         }
     }
 }
