@@ -1,11 +1,11 @@
 use bevy::prelude::*;
 use rand::Rng;
 use crate::components::position::Position;
+use crate::components::ant_goal::AntGoal;
 use crate::components::reset_lifetime::ResetLifetime;
 use bevy::window::PrimaryWindow;
 use crate::systems::ant_rebirth_system::ant_rebirth_system;
 use crate::food::Food;
-use crate::pheromones::CarryingFood;
 use std::time::Duration;
 
 pub struct AntPlugin;
@@ -22,12 +22,6 @@ impl Plugin for AntPlugin {
                 sync_transform_with_position
             ));
     }
-}
-
-#[derive(Component, Debug, Clone, Copy, PartialEq, Eq)]
-pub enum AntGoal {
-    Food,
-    Nest,
 }
 
 #[derive(Component)]
@@ -86,8 +80,6 @@ pub fn ant_goal_system(
                 if found_food {
                     // Change goal to return to nest
                     *ant_goal = AntGoal::Nest;
-                    // Mark the ant as carrying food
-                    commands.entity(entity).insert(CarryingFood);
                     // Reset lifetime when finding food
                     commands.entity(entity).insert(ResetLifetime);
                 }
@@ -99,8 +91,6 @@ pub fn ant_goal_system(
                 if reached_nest {
                     // Change goal back to finding food
                     *ant_goal = AntGoal::Food;
-                    // Remove the carrying food component
-                    commands.entity(entity).remove::<CarryingFood>();
                 }
             }
         }
