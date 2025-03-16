@@ -185,64 +185,51 @@ fn setup_food_pheromone_texture(
 #[derive(Component)]
 pub struct CarryingFood;
 
-fn update_nest_pheromone_grid(
-    mut pheromone_grid: ResMut<NestPheromoneGrid>,
-    // Only ants carrying food will deposit nest pheromones
-    ant_query: Query<&Position, (With<Ant>, With<CarryingFood>)>,
-) {
+// Generic function to update pheromone grids
+fn update_pheromone_grid<T, F>(
+    mut pheromone_grid: ResMut<T>,
+    ant_query: Query<&Position, F>,
+) where 
+    T: Resource + PheromoneGridTrait,
+    F: bevy::ecs::query::QueryFilter,
+{
     // Increase pheromone level at each ant's position
     for position in ant_query.iter() {
         // Convert world coordinates to grid coordinates
         let grid_x = (position.position.x as usize)
-            .clamp(0, pheromone_grid.width.saturating_sub(1));
+            .clamp(0, pheromone_grid.width().saturating_sub(1));
         let grid_y = (position.position.y as usize)
-            .clamp(0, pheromone_grid.height.saturating_sub(1));
+            .clamp(0, pheromone_grid.height().saturating_sub(1));
         
         // Increase pheromone level at this position
-        pheromone_grid.grid[grid_x][grid_y] += PHEROMONE_INCREMENT;
-        
-        // Optional: Cap the maximum pheromone level
-        if pheromone_grid.grid[grid_x][grid_y] > 1.0 {
-            pheromone_grid.grid[grid_x][grid_y] = 1.0;
-        }
+        let current_value = pheromone_grid.get_value(grid_x, grid_y);
+        let new_value = (current_value + PHEROMONE_INCREMENT).min(1.0);
+        pheromone_grid.set_value(grid_x, grid_y, new_value);
     }
     
-    // Optional: Add pheromone decay over time
-    for x in 0..pheromone_grid.width {
-        for y in 0..pheromone_grid.height {
-            pheromone_grid.grid[x][y] *= PHEROMONE_DECAY_RATE;
+    // Apply pheromone decay over time
+    for x in 0..pheromone_grid.width() {
+        for y in 0..pheromone_grid.height() {
+            let current_value = pheromone_grid.get_value(x, y);
+            pheromone_grid.set_value(x, y, current_value * PHEROMONE_DECAY_RATE);
         }
     }
 }
 
+fn update_nest_pheromone_grid(
+    pheromone_grid: ResMut<NestPheromoneGrid>,
+    // Only ants carrying food will deposit nest pheromones
+    ant_query: Query<&Position, (With<Ant>, With<CarryingFood>)>,
+) {
+    update_pheromone_grid(pheromone_grid, ant_query);
+}
+
 fn update_food_pheromone_grid(
-    mut pheromone_grid: ResMut<FoodPheromoneGrid>,
+    pheromone_grid: ResMut<FoodPheromoneGrid>,
     // Only ants NOT carrying food will deposit food pheromones
     ant_query: Query<&Position, (With<Ant>, Without<CarryingFood>)>,
 ) {
-    // Increase pheromone level at each ant's position
-    for position in ant_query.iter() {
-        // Convert world coordinates to grid coordinates
-        let grid_x = (position.position.x as usize)
-            .clamp(0, pheromone_grid.width.saturating_sub(1));
-        let grid_y = (position.position.y as usize)
-            .clamp(0, pheromone_grid.height.saturating_sub(1));
-        
-        // Increase pheromone level at this position
-        pheromone_grid.grid[grid_x][grid_y] += PHEROMONE_INCREMENT;
-        
-        // Optional: Cap the maximum pheromone level
-        if pheromone_grid.grid[grid_x][grid_y] > 1.0 {
-            pheromone_grid.grid[grid_x][grid_y] = 1.0;
-        }
-    }
-    
-    // Optional: Add pheromone decay over time
-    for x in 0..pheromone_grid.width {
-        for y in 0..pheromone_grid.height {
-            pheromone_grid.grid[x][y] *= PHEROMONE_DECAY_RATE;
-        }
-    }
+    update_pheromone_grid(pheromone_grid, ant_query);
 }
 
 // Helper struct to define pheromone color channels
@@ -321,6 +308,7 @@ trait PheromoneGridTrait {
     fn width(&self) -> usize;
     fn height(&self) -> usize;
     fn get_value(&self, x: usize, y: usize) -> f32;
+    fn set_value(&mut self, x: usize, y: usize, value: f32);
     fn texture_entity(&self) -> Option<Entity>;
 }
 
@@ -336,6 +324,10 @@ impl PheromoneGridTrait for NestPheromoneGrid {
     
     fn get_value(&self, x: usize, y: usize) -> f32 {
         self.grid[x][y]
+    }
+    
+    fn set_value(&mut self, x: usize, y: usize, value: f32) {
+        self.grid[x][y] = value;
     }
     
     fn texture_entity(&self) -> Option<Entity> {
@@ -355,6 +347,10 @@ impl PheromoneGridTrait for FoodPheromoneGrid {
     
     fn get_value(&self, x: usize, y: usize) -> f32 {
         self.grid[x][y]
+    }
+    
+    fn set_value(&mut self, x: usize, y: usize, value: f32) {
+        self.grid[x][y] = value;
     }
     
     fn texture_entity(&self) -> Option<Entity> {
