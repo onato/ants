@@ -56,7 +56,7 @@ pub struct PheromoneGrid<T: Send + Sync + 'static> {
 
 // Setup pheromone grid
 fn setup_pheromone_grid<T: Send + Sync + 'static>(
-    mut pheromone_grid: ResMut<PheromoneGrid<T>>,
+    pheromone_grid: ResMut<PheromoneGrid<T>>,
     window_query: Query<&Window, With<PrimaryWindow>>,
 ) {
     let window = window_query.get_single().unwrap();
@@ -66,7 +66,7 @@ fn setup_pheromone_grid<T: Send + Sync + 'static>(
     // Initialize the grid with zeros
     let grid = vec![vec![0.0; height]; width];
     
-    let mut grid_inner = pheromone_grid.into_inner();
+    let grid_inner = pheromone_grid.into_inner();
     grid_inner.grid = grid;
     grid_inner.width = width;
     grid_inner.height = height;
@@ -75,7 +75,7 @@ fn setup_pheromone_grid<T: Send + Sync + 'static>(
 // Setup pheromone texture
 fn setup_pheromone_texture<T: Send + Sync + 'static>(
     mut commands: Commands,
-    mut pheromone_grid: ResMut<PheromoneGrid<T>>,
+    pheromone_grid: ResMut<PheromoneGrid<T>>,
     mut images: ResMut<Assets<Image>>,
     window_query: Query<&Window, With<PrimaryWindow>>,
 ) {
@@ -104,7 +104,7 @@ fn setup_pheromone_texture<T: Send + Sync + 'static>(
     let texture_handle = images.add(texture);
     
     // Store the handle in the resource
-    let mut grid_inner = pheromone_grid.into_inner();
+    let grid_inner = pheromone_grid.into_inner();
     grid_inner.texture_handle = Some(texture_handle.clone());
     
     // Spawn the sprite entity and store its entity ID
@@ -133,7 +133,7 @@ trait PheromoneTypeInfo: Send + Sync {
 
 // Implement for Nest type
 impl PheromoneTypeInfo for Nest {
-    type QueryFilter = (With<Ant>, With<CarryingFood>);
+    type QueryFilter = (With<Ant>, With<crate::pheromones::CarryingFood>);
     
     fn color() -> PheromoneColor {
         PheromoneColor { r: 0, g: 0, b: 255 } // Blue for nest pheromones
@@ -142,7 +142,7 @@ impl PheromoneTypeInfo for Nest {
 
 // Implement for Food type
 impl PheromoneTypeInfo for Food {
-    type QueryFilter = (With<Ant>, Without<CarryingFood>);
+    type QueryFilter = (With<Ant>, Without<crate::pheromones::CarryingFood>);
     
     fn color() -> PheromoneColor {
         PheromoneColor { r: 0, g: 255, b: 0 } // Green for food pheromones
@@ -151,10 +151,10 @@ impl PheromoneTypeInfo for Food {
 
 // Generic function to update pheromone grids
 fn update_pheromone_grid<T: Send + Sync + 'static + PheromoneTypeInfo>(
-    mut pheromone_grid: ResMut<PheromoneGrid<T>>,
+    pheromone_grid: ResMut<PheromoneGrid<T>>,
     ant_query: Query<&Position, T::QueryFilter>,
 ) {
-    let mut grid_inner = pheromone_grid.into_inner();
+    let grid_inner = pheromone_grid.into_inner();
     
     // Increase pheromone level at each ant's position
     for position in ant_query.iter() {

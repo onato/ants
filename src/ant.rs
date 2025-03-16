@@ -2,6 +2,8 @@ use bevy::prelude::*;
 use rand::Rng;
 use crate::components::position::Position;
 use bevy::window::PrimaryWindow;
+use crate::food::Food;
+use crate::pheromones::CarryingFood;
 
 pub struct AntPlugin;
 
@@ -13,9 +15,14 @@ impl Plugin for AntPlugin {
     }
 }
 
+#[derive(Component, Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AntGoal {
+    Food,
+    Nest,
+}
+
 #[derive(Component)]
-pub struct Ant
-{
+pub struct Ant {
 }
 
 #[derive(Component)]
@@ -34,37 +41,108 @@ fn setup(
             // MeshMaterial2d(materials.add(Color::srgb(0.3 as f32, 1.0 as f32, 0.0 as f32))),
             // Transform::from_xyz( 0., 0., 0.,),
             Ant { },
+            AntGoal::Food, // Initially set to Food goal
             Position { position: Vec2::new(0.0, 0.0) }, // Initial position
             Direction { direction: Vec2::new(1.0, 0.0) },
         ));
     }
 }
 pub fn ant_movement_system(
-    mut query: Query<(&mut Position, &mut Direction), With<Ant>>,
+    mut commands: Commands,
+    mut query: Query<(Entity, &mut Position, &mut Direction, &mut AntGoal), With<Ant>>,
     window_query: Query<&Window, With<PrimaryWindow>>,
+    food_positions: Query<&Transform, With<Food>>,
+    food_pheromones: Res<crate::pheromones::PheromoneGrid<crate::pheromones::Food>>,
+    nest_pheromones: Res<crate::pheromones::PheromoneGrid<crate::pheromones::Nest>>,
 ) {
     let window = window_query.get_single().unwrap();
     let window_width = window.width();
     let window_height = window.height();
-    for (mut position, mut direction) in query.iter_mut() {
+    
+    // Collect food positions into a Vec to avoid query conflicts
+    let food_positions: Vec<Vec2> = food_positions
+        .iter()
+        .map(|transform| Vec2::new(transform.translation.x, transform.translation.y))
+        .collect();
+        
+    for (entity, mut position, mut direction, mut ant_goal) in query.iter_mut() {
         // Define the directions for "front", "front-left", and "front-right" based on the current direction
-        // let front = position.position + direction.direction;
-        // let front_left = position.position + rotate_vector(direction.direction, 45.0);
-        // let front_right = position.position + rotate_vector(direction.direction, -45.0);
+        let front = position.position + direction.direction;
+        let front_left = position.position + rotate_vector(direction.direction, 45.0);
+        let front_right = position.position + rotate_vector(direction.direction, -45.0);
 
-        // // Check for pheromones in these directions
-        // let pheromone_in_front = pheromone_query.iter().any(|(pheromone_position, _)| pheromone_position.position == front);
-        // let pheromone_in_front_left = pheromone_query.iter().any(|(pheromone_position, _)| pheromone_position.position == front_left);
-        // let pheromone_in_front_right = pheromone_query.iter().any(|(pheromone_position, _)| pheromone_position.position == front_right);
-        //
-        // // Decision-making: Choose movement direction based on pheromones
-        // if pheromone_in_front {
-        //     direction.direction = front - position.position; // Move towards front
-        // } else if pheromone_in_front_left {
-        //     direction.direction = front_left - position.position; // Move towards front-left
-        // } else if pheromone_in_front_right {
-        //     direction.direction = front_right - position.position; // Move towards front-right
-        // } else {
+        // Check for food in these directions
+        let food_in_front = food_positions.iter().any(|&food_pos| food_pos.distance(front) < 5.0);
+        let food_in_front_left = food_positions.iter().any(|&food_pos| food_pos.distance(front_left) < 5.0);
+        let food_in_front_right = food_positions.iter().any(|&food_pos| food_pos.distance(front_right) < 5.0);
+        
+        // If food is found in any of the three directions, change the ant's goal to Nest
+        if food_in_front || food_in_front_left || food_in_front_right {
+            *ant_goal = AntGoal::Nest;
+            // Mark the ant as carrying food
+            commands.entity(entity).insert(CarryingFood);
+        }
+
+        // Check if we've reached the nest when that's our goal
+        let home_reached = if *ant_goal == AntGoal::Nest {
+            let is_home = position.position.length() < 10.0; // Consider nest reached if close to origin
+            if is_home {
+                *ant_goal = AntGoal::Food; // Switch goal back to finding food
+                commands.entity(entity).remove::<CarryingFood>();
+            }
+            is_home
+        } else {
+            false
+        };
+
+        // Get pheromone values at the three positions based on current goal
+        let (pheromone_front, pheromone_left, pheromone_right) = if *ant_goal == AntGoal::Food {
+            // When looking for food, follow food pheromones
+            let front_x = front.x as usize % food_pheromones.width;
+            let front_y = front.y as usize % food_pheromones.height;
+            let front_left_x = front_left.x as usize % food_pheromones.width;
+            let front_left_y = front_left.y as usize % food_pheromones.height;
+            let front_right_x = front_right.x as usize % food_pheromones.width;
+            let front_right_y = front_right.y as usize % food_pheromones.height;
+            
+            (
+                food_pheromones.grid[front_x][front_y],
+                food_pheromones.grid[front_left_x][front_left_y],
+                food_pheromones.grid[front_right_x][front_right_y]
+            )
+        } else {
+            // When returning to nest, follow nest pheromones
+            let front_x = front.x as usize % nest_pheromones.width;
+            let front_y = front.y as usize % nest_pheromones.height;
+            let front_left_x = front_left.x as usize % nest_pheromones.width;
+            let front_left_y = front_left.y as usize % nest_pheromones.height;
+            let front_right_x = front_right.x as usize % nest_pheromones.width;
+            let front_right_y = front_right.y as usize % nest_pheromones.height;
+            
+            (
+                nest_pheromones.grid[front_x][front_y],
+                nest_pheromones.grid[front_left_x][front_left_y],
+                nest_pheromones.grid[front_right_x][front_right_y]
+            )
+        };
+        
+        // Decision-making for movement direction
+        if food_in_front {
+            direction.direction = front - position.position; // Move towards food if visible
+        } else if food_in_front_left {
+            direction.direction = front_left - position.position;
+        } else if food_in_front_right {
+            direction.direction = front_right - position.position;
+        } else if pheromone_front > 0.1 && pheromone_front >= pheromone_left && pheromone_front >= pheromone_right {
+            // Follow strongest pheromone trail - front has highest concentration
+            direction.direction = front - position.position;
+        } else if pheromone_left > 0.1 && pheromone_left >= pheromone_right {
+            // Front-left has highest concentration
+            direction.direction = front_left - position.position;
+        } else if pheromone_right > 0.1 {
+            // Front-right has highest concentration
+            direction.direction = front_right - position.position;
+        } else {
             let mut rng = rand::thread_rng();
             // Convert current direction to an angle
             let current_angle = direction.direction.y.atan2(direction.direction.x);
@@ -74,7 +152,7 @@ pub fn ant_movement_system(
 
             // Construct the new direction vector
             direction.direction = Vec2::new(new_angle.cos(), new_angle.sin()).normalize();
-        // }
+        }
 
         // Normalize direction to ensure the movement is consistent
         direction.direction = direction.direction.normalize();
@@ -86,22 +164,6 @@ pub fn ant_movement_system(
         // rem_euclid ensures negative values wrap to the positive side
         position.position.x = position.position.x.rem_euclid(window_width);
         position.position.y = position.position.y.rem_euclid(window_height);
-
-        // // Look for Food or Nest at the new position
-        // let found_food_or_nest = pheromone_query.iter().any(|(pheromone_position, pheromone)| {
-        //     pheromone_position.position == position.position && matches!(pheromone.pheromone_type, PheromoneType::Food | PheromoneType::Nest)
-        // });
-
-        // if found_food_or_nest {
-        //     // Change the Ant's goal based on the pheromone type (Food or Nest)
-        //     if pheromone_query.iter().any(|(pheromone_position, pheromone)| {
-        //         pheromone_position.position == position.position && pheromone.pheromone_type == PheromoneType::Food
-        //     }) {
-        //         *ant_goal = AntGoal::Food; // Change goal to Food
-        //     } else {
-        //         *ant_goal = AntGoal::Nest; // Change goal to Nest
-        //     }
-        // }
     }
 }
 
@@ -113,14 +175,14 @@ fn sync_transform_with_position(
     }
 }
 
-// // Utility function to rotate a vector by an angle (in degrees)
-// fn rotate_vector(vec: Vec2, angle_deg: f32) -> Vec2 {
-//     let angle_rad = angle_deg.to_radians();
-//     let cos_angle = angle_rad.cos();
-//     let sin_angle = angle_rad.sin();
-//
-//     Vec2::new(
-//         vec.x * cos_angle - vec.y * sin_angle,
-//         vec.x * sin_angle + vec.y * cos_angle,
-//     )
-// }
+// Utility function to rotate a vector by an angle (in degrees)
+fn rotate_vector(vec: Vec2, angle_deg: f32) -> Vec2 {
+    let angle_rad = angle_deg.to_radians();
+    let cos_angle = angle_rad.cos();
+    let sin_angle = angle_rad.sin();
+
+    Vec2::new(
+        vec.x * cos_angle - vec.y * sin_angle,
+        vec.x * sin_angle + vec.y * cos_angle,
+    )
+}
