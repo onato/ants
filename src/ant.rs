@@ -1,14 +1,12 @@
 use bevy::prelude::*;
 use rand::Rng;
 use crate::components::position::Position;
+use crate::components::reset_lifetime::ResetLifetime;
 use bevy::window::PrimaryWindow;
+use crate::systems::ant_rebirth_system::ant_rebirth_system;
 use crate::food::Food;
 use crate::pheromones::CarryingFood;
 use std::time::Duration;
-
-// Marker component to indicate an ant's lifetime should be reset
-#[derive(Component)]
-pub struct ResetLifetime;
 
 pub struct AntPlugin;
 
@@ -19,7 +17,7 @@ impl Plugin for AntPlugin {
             .add_systems(Update,(
                 ant_goal_system,
                 ant_movement_system,
-                ant_lifetime_check_system,
+                ant_rebirth_system,
                 ant_lifetime_reset_system,
                 sync_transform_with_position
             ));
@@ -103,10 +101,6 @@ pub fn ant_goal_system(
                     *ant_goal = AntGoal::Food;
                     // Remove the carrying food component
                     commands.entity(entity).remove::<CarryingFood>();
-                    
-                    // We need to handle the lifetime reset in the ant_lifetime_system
-                    // since we can't access the Ant component from this query
-                    commands.entity(entity).insert(ResetLifetime);
                 }
             }
         }
@@ -120,10 +114,6 @@ pub fn ant_movement_system(
     food_pheromones: Res<crate::pheromones::PheromoneGrid<crate::pheromones::Food>>,
     nest_pheromones: Res<crate::pheromones::PheromoneGrid<crate::pheromones::Nest>>,
 ) {
-    let window = window_query.get_single().unwrap();
-    let window_width = window.width();
-    let window_height = window.height();
-    
     for (mut position, mut direction, ant_goal) in query.iter_mut() {
         // Define the directions for "front", "front-left", and "front-right" based on the current direction
         let front = position.position + direction.direction;
@@ -132,46 +122,31 @@ pub fn ant_movement_system(
 
         // Get pheromone values at the three positions based on current goal
         let (pheromone_front, pheromone_left, pheromone_right) = if *ant_goal == AntGoal::Food {
-            // When looking for food, follow food pheromones
-            let front_x = front.x as usize % food_pheromones.width;
-            let front_y = front.y as usize % food_pheromones.height;
-            let front_left_x = front_left.x as usize % food_pheromones.width;
-            let front_left_y = front_left.y as usize % food_pheromones.height;
-            let front_right_x = front_right.x as usize % food_pheromones.width;
-            let front_right_y = front_right.y as usize % food_pheromones.height;
-            
             (
-                food_pheromones.grid[front_x][front_y],
-                food_pheromones.grid[front_left_x][front_left_y],
-                food_pheromones.grid[front_right_x][front_right_y]
+                get_pheromone_value(front, &food_pheromones),
+                get_pheromone_value(front_left, &food_pheromones),
+                get_pheromone_value(front_right, &food_pheromones)
             )
         } else {
-            // When returning to nest, follow nest pheromones
-            let front_x = front.x as usize % nest_pheromones.width;
-            let front_y = front.y as usize % nest_pheromones.height;
-            let front_left_x = front_left.x as usize % nest_pheromones.width;
-            let front_left_y = front_left.y as usize % nest_pheromones.height;
-            let front_right_x = front_right.x as usize % nest_pheromones.width;
-            let front_right_y = front_right.y as usize % nest_pheromones.height;
-            
             (
-                nest_pheromones.grid[front_x][front_y],
-                nest_pheromones.grid[front_left_x][front_left_y],
-                nest_pheromones.grid[front_right_x][front_right_y]
+                get_pheromone_value(front, &nest_pheromones),
+                get_pheromone_value(front_left, &nest_pheromones),
+                get_pheromone_value(front_right, &nest_pheromones)
             )
         };
-        
+
         // Decision-making for movement direction
         let mut rng = rand::thread_rng();
         
+        let cutoff = 0.001;
         // Base direction decision on pheromones
-        let base_direction = if pheromone_front > 0.01 && pheromone_front >= pheromone_left && pheromone_front >= pheromone_right {
+        let base_direction = if pheromone_front > cutoff && pheromone_front >= pheromone_left && pheromone_front >= pheromone_right {
             // Follow strongest pheromone trail - front has highest concentration
             front - position.position
-        } else if pheromone_left > 0.01 && pheromone_left >= pheromone_right {
+        } else if pheromone_left > cutoff && pheromone_left >= pheromone_right {
             // Front-left has highest concentration
             front_left - position.position
-        } else if pheromone_right > 0.01 {
+        } else if pheromone_right > cutoff {
             // Front-right has highest concentration
             front_right - position.position
         } else {
@@ -183,7 +158,7 @@ pub fn ant_movement_system(
         };
         
         // Add some randomness to the direction even when following pheromones
-        let randomness_factor = if pheromone_front > 0.01 || pheromone_left > 0.01 || pheromone_right > 0.01 {
+        let randomness_factor = if pheromone_front > cutoff || pheromone_left > cutoff || pheromone_right > cutoff {
             // Less randomness when following pheromones
             rng.gen_range(0.8..0.95)
         } else {
@@ -199,44 +174,22 @@ pub fn ant_movement_system(
         );
         
         // Combine base direction with randomness
-        direction.direction = (base_direction * randomness_factor + random_direction * (1.0 - randomness_factor)).normalize();
-
-        // Normalize direction to ensure the movement is consistent
-        direction.direction = direction.direction.normalize();
+        direction.direction = (
+            base_direction * randomness_factor 
+            + random_direction * (1.0 - randomness_factor)
+        ).normalize();
 
         // Move the ant by 1 pixel in the chosen direction
         position.position += direction.direction;
         
         // Wrap around the screen when ants go out of bounds
         // rem_euclid ensures negative values wrap to the positive side
-        position.position.x = position.position.x.rem_euclid(window_width);
-        position.position.y = position.position.y.rem_euclid(window_height);
+        let window = window_query.get_single().unwrap();
+        position.position.x = position.position.x.rem_euclid(window.width());
+        position.position.y = position.position.y.rem_euclid(window.height());
     }
 }
 
-// System to check ant lifetimes and handle expiration
-pub fn ant_lifetime_check_system(
-    mut commands: Commands,
-    time: Res<Time>,
-    mut ant_query: Query<(Entity, &mut Ant, &mut AntGoal, &mut Position)>,
-) {
-    for (entity, mut ant, mut ant_goal, mut position) in ant_query.iter_mut() {
-        // Update the lifetime timer
-        ant.lifetime.tick(time.delta());
-        
-        // Check if lifetime has expired
-        if ant.lifetime.finished() {
-            // Reset position to nest (0,0)
-            position.position = Vec2::new(0.0, 0.0);
-            
-            // Change goal to Nest
-            *ant_goal = AntGoal::Nest;
-            
-            // Remove CarryingFood if present
-            commands.entity(entity).remove::<CarryingFood>();
-        }
-    }
-}
 
 // System to handle resetting ant lifetimes
 pub fn ant_lifetime_reset_system(
@@ -281,4 +234,14 @@ fn rotate_vector(vec: Vec2, angle_deg: f32) -> Vec2 {
         vec.x * cos_angle - vec.y * sin_angle,
         vec.x * sin_angle + vec.y * cos_angle,
     )
+}
+
+// Helper function to get pheromone value at a position
+fn get_pheromone_value<T: Send + Sync + 'static>(
+    position: Vec2, 
+    pheromone_grid: &crate::pheromones::PheromoneGrid<T>
+) -> f32 {
+    let x = position.x as usize % pheromone_grid.width;
+    let y = position.y as usize % pheromone_grid.height;
+    pheromone_grid.grid[x][y]
 }

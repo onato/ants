@@ -5,6 +5,7 @@ pub mod food;
 pub mod game;
 pub mod components;
 pub mod pheromones;
+pub mod systems;
 
 fn main() {
     App::new()

@@ -6,8 +6,9 @@ use crate::ant::{Ant, AntGoal};
 use std::marker::PhantomData;
 
 // Constants
-const PHEROMONE_DECAY_RATE: f32 = 0.9999;
+const PHEROMONE_DECAY_RATE: f32 = 0.999;
 const PHEROMONE_INCREMENT: f32 = 0.05;
+const FOOD_PHEROMONE_INCREMENT: f32 = 0.25; // 5 times stronger for Food pheromone
 
 // Pheromone types
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -136,7 +137,7 @@ impl PheromoneTypeInfo for Nest {
     type QueryFilter = (With<Ant>, With<AntGoal>, Without<CarryingFood>);
     
     fn color() -> PheromoneColor {
-        PheromoneColor { r: 0, g: 0, b: 255, a: 255 } // Blue for nest pheromones
+        PheromoneColor { r: 0, g: 0, b: 255, a: 55 } // Blue for nest pheromones
     }
 }
 
@@ -149,8 +150,27 @@ impl PheromoneTypeInfo for Food {
     }
 }
 
+// Trait to get the increment value for each pheromone type
+trait PheromoneIncrement {
+    fn increment() -> f32;
+}
+
+// Default increment for Nest pheromones
+impl PheromoneIncrement for Nest {
+    fn increment() -> f32 {
+        PHEROMONE_INCREMENT
+    }
+}
+
+// Stronger increment for Food pheromones
+impl PheromoneIncrement for Food {
+    fn increment() -> f32 {
+        FOOD_PHEROMONE_INCREMENT
+    }
+}
+
 // Generic function to update pheromone grids
-fn update_pheromone_grid<T: Send + Sync + 'static + PheromoneTypeInfo>(
+fn update_pheromone_grid<T: Send + Sync + 'static + PheromoneTypeInfo + PheromoneIncrement>(
     pheromone_grid: ResMut<PheromoneGrid<T>>,
     ant_query: Query<&Position, T::QueryFilter>,
 ) {
@@ -166,7 +186,7 @@ fn update_pheromone_grid<T: Send + Sync + 'static + PheromoneTypeInfo>(
         
         // Increase pheromone level at this position
         let current_value = grid_inner.grid[grid_x][grid_y];
-        let new_value = (current_value + PHEROMONE_INCREMENT).min(1.0);
+        let new_value = (current_value + T::increment()).min(1.0);
         grid_inner.grid[grid_x][grid_y] = new_value;
     }
     
