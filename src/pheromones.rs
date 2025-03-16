@@ -55,10 +55,13 @@ pub struct FoodPheromoneGrid {
     pub texture_entity: Option<Entity>,
 }
 
-fn setup_nest_pheromone_grid(
-    mut pheromone_grid: ResMut<NestPheromoneGrid>,
+// Generic function to setup pheromone grids
+fn setup_pheromone_grid<T>(
+    mut pheromone_grid: ResMut<T>,
     window_query: Query<&Window, With<PrimaryWindow>>,
-) {
+) where 
+    T: Resource + PheromoneGridSetup,
+{
     let window = window_query.get_single().unwrap();
     let width = window.width() as usize;
     let height = window.height() as usize;
@@ -66,25 +69,22 @@ fn setup_nest_pheromone_grid(
     // Initialize the grid with zeros
     let grid = vec![vec![0.0; height]; width];
     
-    pheromone_grid.grid = grid;
-    pheromone_grid.width = width;
-    pheromone_grid.height = height;
+    pheromone_grid.set_grid(grid);
+    pheromone_grid.set_dimensions(width, height);
+}
+
+fn setup_nest_pheromone_grid(
+    pheromone_grid: ResMut<NestPheromoneGrid>,
+    window_query: Query<&Window, With<PrimaryWindow>>,
+) {
+    setup_pheromone_grid(pheromone_grid, window_query);
 }
 
 fn setup_food_pheromone_grid(
-    mut pheromone_grid: ResMut<FoodPheromoneGrid>,
+    pheromone_grid: ResMut<FoodPheromoneGrid>,
     window_query: Query<&Window, With<PrimaryWindow>>,
 ) {
-    let window = window_query.get_single().unwrap();
-    let width = window.width() as usize;
-    let height = window.height() as usize;
-    
-    // Initialize the grid with zeros
-    let grid = vec![vec![0.0; height]; width];
-    
-    pheromone_grid.grid = grid;
-    pheromone_grid.width = width;
-    pheromone_grid.height = height;
+    setup_pheromone_grid(pheromone_grid, window_query);
 }
 
 fn setup_nest_pheromone_texture(
@@ -303,6 +303,12 @@ fn update_pheromone_texture<T: Resource + PheromoneGridTrait>(
     }
 }
 
+// Trait for setting up pheromone grids
+trait PheromoneGridSetup {
+    fn set_grid(&mut self, grid: Vec<Vec<f32>>);
+    fn set_dimensions(&mut self, width: usize, height: usize);
+}
+
 // Trait to allow generic access to pheromone grid properties
 trait PheromoneGridTrait {
     fn width(&self) -> usize;
@@ -310,6 +316,18 @@ trait PheromoneGridTrait {
     fn get_value(&self, x: usize, y: usize) -> f32;
     fn set_value(&mut self, x: usize, y: usize, value: f32);
     fn texture_entity(&self) -> Option<Entity>;
+}
+
+// Implement the setup trait for NestPheromoneGrid
+impl PheromoneGridSetup for NestPheromoneGrid {
+    fn set_grid(&mut self, grid: Vec<Vec<f32>>) {
+        self.grid = grid;
+    }
+    
+    fn set_dimensions(&mut self, width: usize, height: usize) {
+        self.width = width;
+        self.height = height;
+    }
 }
 
 // Implement the trait for NestPheromoneGrid
@@ -332,6 +350,18 @@ impl PheromoneGridTrait for NestPheromoneGrid {
     
     fn texture_entity(&self) -> Option<Entity> {
         self.texture_entity
+    }
+}
+
+// Implement the setup trait for FoodPheromoneGrid
+impl PheromoneGridSetup for FoodPheromoneGrid {
+    fn set_grid(&mut self, grid: Vec<Vec<f32>>) {
+        self.grid = grid;
+    }
+    
+    fn set_dimensions(&mut self, width: usize, height: usize) {
+        self.width = width;
+        self.height = height;
     }
 }
 
