@@ -5,6 +5,7 @@ use std::time::Duration;
 use crate::components::position::Position;
 use crate::components::carrying_food::CarryingFood;
 use crate::components::reset_lifetime::ResetLifetime;
+use crate::pheromones::PheromoneGridTrait;
 use crate::systems::ant_rebirth_system::ant_rebirth_system;
 use crate::food::Food;
 
@@ -107,91 +108,44 @@ pub fn follow_pheromones_system(
     nest_pheromones: Res<crate::pheromones::PheromoneGrid<crate::pheromones::Nest>>,
 ) {
 
-    // let total_ants = query.iter().count();
-    // let carrying_food_count = query.iter().filter(|(_, _, carrying_food)| carrying_food.is_some()).count();
-    // let carrying_food_percentage = (carrying_food_count as f32 / total_ants as f32) * 100.0;
-    // println!("Carrying food: {:.2}% Total: {}", carrying_food_percentage, carrying_food_count);
+    const VIEW_RADIUS: f32 = 10.0;
+    const VIEW_ANGLE: f32 = 60.0; // in degrees
+
     for (mut position, mut direction, carrying_food) in query.iter_mut() {
-        // Define the directions for "front", "front-left", and "front-right" based on the current direction
-        let front = position.position + direction.direction;
-        let front_left = position.position + rotate_vector(direction.direction, 45.0);
-        let front_right = position.position + rotate_vector(direction.direction, -45.0);
-
-        let (pheromone_front, pheromone_left, pheromone_right) = if carrying_food.is_some() {
-            (
-                get_pheromone_value(front, &nest_pheromones),
-                get_pheromone_value(front_left, &nest_pheromones),
-                get_pheromone_value(front_right, &nest_pheromones)
-            )
+        let pheromone_grid: &dyn PheromoneGridTrait = if carrying_food.is_some() {
+            &*nest_pheromones
         } else {
-            (
-                get_pheromone_value(front, &food_pheromones),
-                get_pheromone_value(front_left, &food_pheromones),
-                get_pheromone_value(front_right, &food_pheromones)
-            )
+            &*food_pheromones
         };
 
-        // Decision-making for movement direction
-        let mut rng = rand::thread_rng();
-        
-        let cutoff = 0.0001;
-        // Base direction decision on pheromones
-        let best_direction = if pheromone_front > cutoff && pheromone_front >= pheromone_left && pheromone_front >= pheromone_right {
-            // Follow strongest pheromone trail - front has highest concentration
-            // if carrying_food.is_some() {
-            //     println!("tail in front");
-            // }
-            front - position.position
-        } else if pheromone_left > cutoff && pheromone_left >= pheromone_right {
-            // Front-left has highest concentration
-            // if carrying_food.is_some() {
-            //     println!("tail in left");
-            // }
-            front_left - position.position
-        } else if pheromone_right > cutoff {
-            // Front-right has highest concentration
-            // if carrying_food.is_some() {
-            //     println!("tail in right");
-            // }
-            front_right - position.position
-        } else {
-            // if carrying_food.is_some() {
-            //     println!("has food and random");
-            // }
-            // No strong pheromone trail, use random direction with larger deviation
-            let current_angle = direction.direction.y.atan2(direction.direction.x);
-            let deviation = rng.gen_range(-45_f32.to_radians()..45_f32.to_radians());
-            let new_angle = current_angle + deviation;
-            Vec2::new(new_angle.cos(), new_angle.sin())
-        };
-        
-        // Add some randomness to the direction even when following pheromones
-        let randomness_factor = if pheromone_front > cutoff || pheromone_left > cutoff || pheromone_right > cutoff {
-            // Less randomness when following pheromones
-            rng.gen_range(0.8..0.95)
-        } else {
-            // More randomness when exploring
-            rng.gen_range(0.6..0.9)
-        };
-        
-        // Apply small random deviation to direction
-        let random_angle = rng.gen_range(-15_f32.to_radians()..15_f32.to_radians());
-        let random_direction = Vec2::new(
-            best_direction.x * random_angle.cos() - best_direction.y * random_angle.sin(),
-            best_direction.x * random_angle.sin() + best_direction.y * random_angle.cos()
-        );
-        
-        // Combine base direction with randomness
-        direction.direction = (
-            best_direction * randomness_factor 
-            + random_direction * (1.0 - randomness_factor)
-        ).normalize();
+        let mut best_direction = direction.direction;
+        let mut max_pheromone = 0.0;
 
-        // Move the ant by 1 pixel in the chosen direction
+        for angle in (-VIEW_ANGLE as i32..=VIEW_ANGLE as i32).step_by(5) {
+            let angle_rad = angle as f32 * std::f32::consts::PI / 180.0;
+            let rotated_direction = rotate_vector(direction.direction, angle_rad.to_degrees());
+
+            for dist in 1..=VIEW_RADIUS as i32 {
+                let check_position = position.position + rotated_direction * dist as f32;
+                let pheromone_value = get_pheromone_value(check_position, pheromone_grid);
+
+                if pheromone_value > max_pheromone {
+                    max_pheromone = pheromone_value;
+                    best_direction = rotated_direction;
+                }
+            }
+        }
+
+        if max_pheromone == 0.0 {
+            // If no pheromone is found, move randomly within VIEW_ANGLE
+            let mut rng = rand::thread_rng();
+            let random_angle: f32 = rng.gen_range(-VIEW_ANGLE..=VIEW_ANGLE);
+            direction.direction = rotate_vector(direction.direction, random_angle.to_radians()).normalize();
+        } else {
+            direction.direction = best_direction.normalize();
+        }
         position.position += direction.direction;
-        
-        // Wrap around the screen when ants go out of bounds
-        // rem_euclid ensures negative values wrap to the positive side
+
         let window = window_query.get_single().unwrap();
         position.position.x = position.position.x.rem_euclid(window.width());
         position.position.y = position.position.y.rem_euclid(window.height());
@@ -234,11 +188,11 @@ fn rotate_vector(vec: Vec2, angle_deg: f32) -> Vec2 {
 }
 
 // Helper function to get pheromone value at a position
-fn get_pheromone_value<T: Send + Sync + 'static>(
+fn get_pheromone_value(
     position: Vec2, 
-    pheromone_grid: &crate::pheromones::PheromoneGrid<T>
+    pheromone_grid: &dyn PheromoneGridTrait
 ) -> f32 {
-    let x = position.x as usize % pheromone_grid.width;
-    let y = position.y as usize % pheromone_grid.height;
-    pheromone_grid.grid[x][y]
+    let x = position.x as usize % pheromone_grid.get_width();
+    let y = position.y as usize % pheromone_grid.get_height();
+    pheromone_grid.get_grid()[x][y]
 }

@@ -48,6 +48,12 @@ impl Plugin for PheromonePlugin {
     }
 }
 
+pub trait PheromoneGridTrait {
+    fn get_grid(&self) -> &Vec<Vec<f32>>;
+    fn get_width(&self) -> usize;
+    fn get_height(&self) -> usize;
+}
+
 #[derive(Resource, Default)]
 pub struct PheromoneGrid<T: Send + Sync + 'static> {
     pub grid: Vec<Vec<f32>>,
@@ -57,6 +63,18 @@ pub struct PheromoneGrid<T: Send + Sync + 'static> {
     pub texture_entity: Option<Entity>,
     pub blur_timer: Timer,
     _marker: PhantomData<T>,
+}
+
+impl<T: Send + Sync + 'static> PheromoneGridTrait for PheromoneGrid<T> {
+    fn get_grid(&self) -> &Vec<Vec<f32>> {
+        &self.grid
+    }
+    fn get_width(&self) -> usize {
+        self.width
+    }
+    fn get_height(&self) -> usize {
+        self.height
+    }
 }
 
 // Setup pheromone grid
@@ -125,7 +143,7 @@ impl PheromoneIncrement for Food {
 // Generic function to update pheromone grids
 fn update_pheromone_grid<T: Send + Sync + 'static + PheromoneTypeInfo + PheromoneIncrement>(
     time: Res<Time>,
-    mut pheromone_grid: ResMut<PheromoneGrid<T>>,
+    pheromone_grid: ResMut<PheromoneGrid<T>>,
     ant_query: Query<&Position, T::QueryFilter>,
 ) {
     let grid_inner = pheromone_grid.into_inner();
