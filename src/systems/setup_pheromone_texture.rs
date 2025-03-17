@@ -1,7 +1,7 @@
 use bevy::prelude::*;
-use crate::pheromones::PheromoneGrid;
 use bevy::window::PrimaryWindow;
 use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
+use crate::pheromones::PheromoneGrid;
 
 // Setup pheromone texture
 pub fn setup_pheromone_texture<T: Send + Sync + 'static>(
@@ -38,16 +38,17 @@ pub fn setup_pheromone_texture<T: Send + Sync + 'static>(
     let grid_inner = pheromone_grid.into_inner();
     grid_inner.texture_handle = Some(texture_handle.clone());
     
+    let width = window.width();
+    let height = window.height();
     commands.spawn((
-        SpriteBundle {
-            sprite: Sprite {
-                color: Color::WHITE, // Fully white background
-                custom_size: Some(Vec2::new(width as f32, height as f32)), // Match texture size
-                ..default()
-            },
-            transform: Transform::from_xyz((width as f32) / 2., (height as f32) / 2., -1.0), // Lower Z index
-            ..default()
+        Sprite {
+            color: Color::WHITE, // White background
+            custom_size: Some(Vec2::new(width, height)), // Match texture size
+            ..Default::default()
         },
+        Transform::from_xyz(width / 2.0, height / 2.0, -1.0), // Lower Z index
+        Visibility::Visible,
+        InheritedVisibility::default(),
     ));
 
     // Spawn the sprite entity and store its entity ID

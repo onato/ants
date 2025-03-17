@@ -9,8 +9,7 @@ use std::marker::PhantomData;
 
 // Constants
 const PHEROMONE_DECAY_RATE: f32 = 0.99999;
-const BLUR_INTERVAL: f32 = 1000000000.0; // Blur every 3 seconds
-const PHEROMONE_INCREMENT: f32 = 0.05;
+const PHEROMONE_INCREMENT: f32 = 0.03;
 const FOOD_PHEROMONE_INCREMENT: f32 = 0.05; // 5 times stronger for Food pheromone
 
 // Pheromone types
@@ -90,7 +89,6 @@ fn setup_pheromone_grid<T: Send + Sync + 'static>(
     let grid = vec![vec![0.0; height]; width];
     
     let grid_inner = pheromone_grid.into_inner();
-    grid_inner.blur_timer = Timer::from_seconds(BLUR_INTERVAL, TimerMode::Repeating);
     grid_inner.grid = grid;
     grid_inner.width = width;
     grid_inner.height = height;
@@ -141,7 +139,6 @@ impl PheromoneIncrement for Food {
 
 // Generic function to update pheromone grids
 fn update_pheromone_grid<T: Send + Sync + 'static + PheromoneTypeInfo + PheromoneIncrement>(
-    time: Res<Time>,
     pheromone_grid: ResMut<PheromoneGrid<T>>,
     ant_query: Query<&Position, T::QueryFilter>,
 ) {
@@ -165,21 +162,6 @@ fn update_pheromone_grid<T: Send + Sync + 'static + PheromoneTypeInfo + Pheromon
         for y in 0..grid_inner.height {
             grid_inner.grid[x][y] *= PHEROMONE_DECAY_RATE;
         }
-    }
-    // Update the blur timer and apply blur if the timer has finished
-    if grid_inner.blur_timer.tick(time.delta()).just_finished() {
-        let mut new_grid = grid_inner.grid.clone();
-        for x in 1..grid_inner.width - 1 {
-            for y in 1..grid_inner.height - 1 {
-                let sum = grid_inner.grid[x - 1][y] +
-                          grid_inner.grid[x + 1][y] +
-                          grid_inner.grid[x][y - 1] +
-                          grid_inner.grid[x][y + 1] +
-                          grid_inner.grid[x][y];
-                new_grid[x][y] = sum / 5.0;
-            }
-        }
-        grid_inner.grid = new_grid;
     }
 }
 

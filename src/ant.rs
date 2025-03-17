@@ -19,8 +19,8 @@ use crate::food::Food;
 
 pub struct AntPlugin;
 
-const MIN_LIFETIME: f32 = 10.;
-const MAX_LIFETIME: f32 = 50.;
+const MIN_LIFETIME: f32 = 6.;
+const MAX_LIFETIME: f32 = 37.;
 
 impl Plugin for AntPlugin {
     fn build(&self, app: &mut App) {
@@ -51,7 +51,7 @@ fn setup(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
 ) {
-    for _ in 0..999 {
+    for _ in 0..500 {
         let mut rng = rand::thread_rng();
         // Random lifetime between 30 and 60 seconds
         let lifetime_secs = rng.gen_range(MIN_LIFETIME..=MAX_LIFETIME);
@@ -59,8 +59,8 @@ fn setup(
         let random_angle = rng.gen_range(0.0..TAU);
         
         commands.spawn((
-            Mesh2d(meshes.add(Rectangle::new(1., 3.))),
-            MeshMaterial2d(materials.add(Color::srgb(0.3 as f32, 1.0 as f32, 0.0 as f32))),
+            Mesh2d(meshes.add(Rectangle::new(3., 3.))),
+            MeshMaterial2d(materials.add(Color::srgb(0. as f32, 0. as f32, 0.0 as f32))),
             Transform::from_xyz( 0., 0., 0.,),
             Ant { 
                 lifetime: Timer::new(Duration::from_secs_f32(lifetime_secs), TimerMode::Once),
@@ -143,13 +143,13 @@ pub fn follow_pheromones_system(
 
         if max_pheromone == 0.0 {
             // If no pheromone is found, move randomly within VIEW_ANGLE
-            let random_angle_rad: f32 = rng.gen_range(-VIEW_ANGLE..=VIEW_ANGLE);
+            let random_angle_rad: f32 = rng.gen_range((-VIEW_ANGLE/2.)..=VIEW_ANGLE/2.);
             direction.direction = rotate_vector(direction.direction, random_angle_rad).normalize();
         } else {
             direction.direction = best_direction.normalize();
         }
         // Add some randomness to the direction
-        let random_offset: Vec2 = random_normalized_direction() * rng.gen_range(0.0..0.6);
+        let random_offset: Vec2 = random_normalized_direction() * rng.gen_range(0.0..0.8);
         position.position += (direction.direction + random_offset).normalize();
 
         let window = window_query.get_single().unwrap();

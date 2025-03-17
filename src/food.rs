@@ -24,15 +24,15 @@ fn setup_food(
     let width = window.width();
     let height = window.height();
 
-    let circle_material = materials.add(Color::srgb(0.0, 0.4, 1.0));
+    let circle_material = materials.add(Color::srgb(0., 0., 0.));
     let circle_mesh = meshes.add(Circle::new(5.0));
     
-    let num_foods = 10;
-    let spacing = width / (num_foods as f32 + 1.0);
+    let num_foods = 5;
+    let spacing = width / 2. / (num_foods as f32 + 1.0);
     let y_position = height / 2.0;
 
     for i in 1..=num_foods {
-        let x_position = spacing * i as f32;
+        let x_position = width / 4. + spacing * i as f32;
         commands.spawn((
             Food,
             Position { position: Vec2::new(x_position, y_position) },
