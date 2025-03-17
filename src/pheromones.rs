@@ -9,7 +9,7 @@ use std::marker::PhantomData;
 
 // Constants
 const PHEROMONE_DECAY_RATE: f32 = 0.9999;
-const BLUR_INTERVAL: f32 = 3.0; // Blur every 3 seconds
+const BLUR_INTERVAL: f32 = 1.0; // Blur every 3 seconds
 const PHEROMONE_INCREMENT: f32 = 0.05;
 const FOOD_PHEROMONE_INCREMENT: f32 = 0.05; // 5 times stronger for Food pheromone
 
@@ -79,8 +79,7 @@ impl<T: Send + Sync + 'static> PheromoneGridTrait for PheromoneGrid<T> {
 
 // Setup pheromone grid
 fn setup_pheromone_grid<T: Send + Sync + 'static>(
-    time: Res<Time>,
-    mut pheromone_grid: ResMut<PheromoneGrid<T>>,
+    pheromone_grid: ResMut<PheromoneGrid<T>>,
     window_query: Query<&Window, With<PrimaryWindow>>,
 ) {
     let window = window_query.get_single().unwrap();
@@ -90,7 +89,7 @@ fn setup_pheromone_grid<T: Send + Sync + 'static>(
     // Initialize the grid with zeros
     let grid = vec![vec![0.0; height]; width];
     
-    let mut grid_inner = pheromone_grid.into_inner();
+    let grid_inner = pheromone_grid.into_inner();
     grid_inner.blur_timer = Timer::from_seconds(BLUR_INTERVAL, TimerMode::Repeating);
     grid_inner.grid = grid;
     grid_inner.width = width;

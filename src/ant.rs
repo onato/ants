@@ -2,6 +2,7 @@ use bevy::prelude::*;
 use bevy::window::PrimaryWindow;
 use rand::Rng;
 use std::time::Duration;
+use std::f32::consts::{TAU, PI};
 use crate::components::position::Position;
 use crate::components::carrying_food::CarryingFood;
 use crate::components::reset_lifetime::ResetLifetime;
@@ -47,6 +48,8 @@ fn setup(
         let mut rng = rand::thread_rng();
         // Random lifetime between 30 and 60 seconds
         let lifetime_secs = rng.gen_range(MIN_LIFETIME..=MAX_LIFETIME);
+        let mut rng = rand::thread_rng();
+        let random_angle = rng.gen_range(0.0..TAU);
         
         commands.spawn((
             Mesh2d(meshes.add(Rectangle::new(1., 3.))),
@@ -56,7 +59,7 @@ fn setup(
                 lifetime: Timer::new(Duration::from_secs_f32(lifetime_secs), TimerMode::Once),
             },
             Position { position: Vec2::new(0.0, 0.0) }, // Initial position
-            Direction { direction: Vec2::new(1.0, 0.0) },
+            Direction { direction: Vec2::new(random_angle.cos(), random_angle.sin()).normalize()},
         ));
     }
 }
@@ -80,13 +83,7 @@ pub fn ant_goal_system(
             );
             
             if found_food {
-                if let Some(first_element) = food_positions.first() {
-                    println!("{} -> {}", position.position, first_element);
-                }
-                // Change goal to return to nest
                 commands.entity(entity).insert(CarryingFood);
-                // Reset lifetime when finding food
-                // commands.entity(entity).insert(ResetLifetime);
             }
         } else {
             // Check if ant reached the nest
@@ -108,8 +105,9 @@ pub fn follow_pheromones_system(
     nest_pheromones: Res<crate::pheromones::PheromoneGrid<crate::pheromones::Nest>>,
 ) {
 
-    const VIEW_RADIUS: f32 = 10.0;
-    const VIEW_ANGLE: f32 = 60.0; // in degrees
+    const VIEW_ANGLE: f32 = 1.0; // in degrees
+    let mut rng = rand::thread_rng();
+    let view_radius: i32 = rng.gen_range(1..=6);
 
     for (mut position, mut direction, carrying_food) in query.iter_mut() {
         let pheromone_grid: &dyn PheromoneGridTrait = if carrying_food.is_some() {
@@ -122,10 +120,10 @@ pub fn follow_pheromones_system(
         let mut max_pheromone = 0.0;
 
         for angle in (-VIEW_ANGLE as i32..=VIEW_ANGLE as i32).step_by(5) {
-            let angle_rad = angle as f32 * std::f32::consts::PI / 180.0;
+            let angle_rad = (angle as f32).to_radians();
             let rotated_direction = rotate_vector(direction.direction, angle_rad.to_degrees());
 
-            for dist in 1..=VIEW_RADIUS as i32 {
+            for dist in 1..=view_radius as i32 {
                 let check_position = position.position + rotated_direction * dist as f32;
                 let pheromone_value = get_pheromone_value(check_position, pheromone_grid);
 
@@ -138,9 +136,8 @@ pub fn follow_pheromones_system(
 
         if max_pheromone == 0.0 {
             // If no pheromone is found, move randomly within VIEW_ANGLE
-            let mut rng = rand::thread_rng();
-            let random_angle: f32 = rng.gen_range(-VIEW_ANGLE..=VIEW_ANGLE);
-            direction.direction = rotate_vector(direction.direction, random_angle.to_radians()).normalize();
+            let random_angle_rad: f32 = rng.gen_range(-VIEW_ANGLE..=VIEW_ANGLE);
+            direction.direction = rotate_vector(direction.direction, random_angle_rad).normalize();
         } else {
             direction.direction = best_direction.normalize();
         }
@@ -161,7 +158,6 @@ pub fn ant_lifetime_reset_system(
         let mut rng = rand::thread_rng();
         let new_lifetime = rng.gen_range(MIN_LIFETIME..=MAX_LIFETIME);
         ant.lifetime = Timer::new(Duration::from_secs_f32(new_lifetime), TimerMode::Once);
-        println!("Reset the timer");
             
         commands.entity(entity).remove::<ResetLifetime>();
     }
