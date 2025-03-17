@@ -10,14 +10,10 @@ pub fn ant_rebirth_system(
     mut ant_query: Query<(Entity, &mut Ant, &mut Position)>,
 ) {
     for (entity, mut ant, mut position) in ant_query.iter_mut() {
-        // Update the lifetime timer
         ant.lifetime.tick(time.delta());
-        
-        // Check if lifetime has expired
         if ant.lifetime.finished() {
-            // Reset position to nest (0,0)
+            ant.lifetime.reset();
             position.position = Vec2::new(0.0, 0.0);
-            
             commands.entity(entity).insert(ResetLifetime);
         }
     }

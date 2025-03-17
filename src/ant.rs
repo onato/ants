@@ -10,6 +10,9 @@ use crate::food::Food;
 
 pub struct AntPlugin;
 
+const MIN_LIFETIME: f32 = 30.;
+const MAX_LIFETIME: f32 = 120.;
+
 impl Plugin for AntPlugin {
     fn build(&self, app: &mut App) {
         app
@@ -36,18 +39,18 @@ pub struct Direction {
 
 fn setup(
     mut commands: Commands,
-    // mut meshes: ResMut<Assets<Mesh>>,
-    // mut materials: ResMut<Assets<ColorMaterial>>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<ColorMaterial>>,
 ) {
-    for _ in 0..4000 {
+    for _ in 0..999 {
         let mut rng = rand::thread_rng();
         // Random lifetime between 30 and 60 seconds
-        let lifetime_secs = rng.gen_range(30.0..120.0);
+        let lifetime_secs = rng.gen_range(MIN_LIFETIME..=MAX_LIFETIME);
         
         commands.spawn((
-            // Mesh2d(meshes.add(Rectangle::new(1., 1.))),
-            // MeshMaterial2d(materials.add(Color::srgb(0.3 as f32, 1.0 as f32, 0.0 as f32))),
-            // Transform::from_xyz( 0., 0., 0.,),
+            Mesh2d(meshes.add(Rectangle::new(1., 3.))),
+            MeshMaterial2d(materials.add(Color::srgb(0.3 as f32, 1.0 as f32, 0.0 as f32))),
+            Transform::from_xyz( 0., 0., 0.,),
             Ant { 
                 lifetime: Timer::new(Duration::from_secs_f32(lifetime_secs), TimerMode::Once),
             },
@@ -60,12 +63,12 @@ fn setup(
 pub fn ant_goal_system(
     mut commands: Commands,
     mut query: Query<(Entity, &Position, Option<&CarryingFood>), With<Ant>>,
-    food_positions: Query<&Transform, With<Food>>,
+    food_positions: Query<&Position, With<Food>>,
 ) {
     // Collect food positions into a Vec to avoid query conflicts
     let food_positions: Vec<Vec2> = food_positions
         .iter()
-        .map(|transform| Vec2::new(transform.translation.x, transform.translation.y))
+        .map(|position| Vec2::new(position.position.x, position.position.y))
         .collect();
 
     for (entity, position, carrying_food) in query.iter_mut() {
@@ -76,10 +79,13 @@ pub fn ant_goal_system(
             );
             
             if found_food {
+                if let Some(first_element) = food_positions.first() {
+                    println!("{} -> {}", position.position, first_element);
+                }
                 // Change goal to return to nest
                 commands.entity(entity).insert(CarryingFood);
                 // Reset lifetime when finding food
-                commands.entity(entity).insert(ResetLifetime);
+                // commands.entity(entity).insert(ResetLifetime);
             }
         } else {
             // Check if ant reached the nest
@@ -100,41 +106,58 @@ pub fn follow_pheromones_system(
     food_pheromones: Res<crate::pheromones::PheromoneGrid<crate::pheromones::Food>>,
     nest_pheromones: Res<crate::pheromones::PheromoneGrid<crate::pheromones::Nest>>,
 ) {
+
+    // let total_ants = query.iter().count();
+    // let carrying_food_count = query.iter().filter(|(_, _, carrying_food)| carrying_food.is_some()).count();
+    // let carrying_food_percentage = (carrying_food_count as f32 / total_ants as f32) * 100.0;
+    // println!("Carrying food: {:.2}% Total: {}", carrying_food_percentage, carrying_food_count);
     for (mut position, mut direction, carrying_food) in query.iter_mut() {
         // Define the directions for "front", "front-left", and "front-right" based on the current direction
         let front = position.position + direction.direction;
         let front_left = position.position + rotate_vector(direction.direction, 45.0);
         let front_right = position.position + rotate_vector(direction.direction, -45.0);
 
-        let (pheromone_front, pheromone_left, pheromone_right) = if carrying_food.is_none() {
-            (
-                get_pheromone_value(front, &food_pheromones),
-                get_pheromone_value(front_left, &food_pheromones),
-                get_pheromone_value(front_right, &food_pheromones)
-            )
-        } else {
+        let (pheromone_front, pheromone_left, pheromone_right) = if carrying_food.is_some() {
             (
                 get_pheromone_value(front, &nest_pheromones),
                 get_pheromone_value(front_left, &nest_pheromones),
                 get_pheromone_value(front_right, &nest_pheromones)
+            )
+        } else {
+            (
+                get_pheromone_value(front, &food_pheromones),
+                get_pheromone_value(front_left, &food_pheromones),
+                get_pheromone_value(front_right, &food_pheromones)
             )
         };
 
         // Decision-making for movement direction
         let mut rng = rand::thread_rng();
         
-        let cutoff = 0.01;
+        let cutoff = 0.0001;
         // Base direction decision on pheromones
         let best_direction = if pheromone_front > cutoff && pheromone_front >= pheromone_left && pheromone_front >= pheromone_right {
             // Follow strongest pheromone trail - front has highest concentration
+            // if carrying_food.is_some() {
+            //     println!("tail in front");
+            // }
             front - position.position
         } else if pheromone_left > cutoff && pheromone_left >= pheromone_right {
             // Front-left has highest concentration
+            // if carrying_food.is_some() {
+            //     println!("tail in left");
+            // }
             front_left - position.position
         } else if pheromone_right > cutoff {
             // Front-right has highest concentration
+            // if carrying_food.is_some() {
+            //     println!("tail in right");
+            // }
             front_right - position.position
         } else {
+            // if carrying_food.is_some() {
+            //     println!("has food and random");
+            // }
             // No strong pheromone trail, use random direction with larger deviation
             let current_angle = direction.direction.y.atan2(direction.direction.x);
             let deviation = rng.gen_range(-45_f32.to_radians()..45_f32.to_radians());
@@ -182,8 +205,9 @@ pub fn ant_lifetime_reset_system(
 ) {
     for (entity, mut ant) in ant_query.iter_mut() {
         let mut rng = rand::thread_rng();
-        let new_lifetime = rng.gen_range(30.0..120.0);
+        let new_lifetime = rng.gen_range(MIN_LIFETIME..=MAX_LIFETIME);
         ant.lifetime = Timer::new(Duration::from_secs_f32(new_lifetime), TimerMode::Once);
+        println!("Reset the timer");
             
         commands.entity(entity).remove::<ResetLifetime>();
     }
