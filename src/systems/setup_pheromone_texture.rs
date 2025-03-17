@@ -38,6 +38,18 @@ pub fn setup_pheromone_texture<T: Send + Sync + 'static>(
     let grid_inner = pheromone_grid.into_inner();
     grid_inner.texture_handle = Some(texture_handle.clone());
     
+    commands.spawn((
+        SpriteBundle {
+            sprite: Sprite {
+                color: Color::WHITE, // Fully white background
+                custom_size: Some(Vec2::new(width as f32, height as f32)), // Match texture size
+                ..default()
+            },
+            transform: Transform::from_xyz((width as f32) / 2., (height as f32) / 2., -1.0), // Lower Z index
+            ..default()
+        },
+    ));
+
     // Spawn the sprite entity and store its entity ID
     let entity = commands.spawn((
         Sprite::from_image(texture_handle.clone()),

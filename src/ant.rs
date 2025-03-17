@@ -2,7 +2,14 @@ use bevy::prelude::*;
 use bevy::window::PrimaryWindow;
 use rand::Rng;
 use std::time::Duration;
-use std::f32::consts::{TAU, PI};
+use std::f32::consts::TAU;
+use bevy::math::Vec2;
+
+fn random_normalized_direction() -> Vec2 {
+    let mut rng = rand::thread_rng();
+    let random_angle = rng.gen_range(0.0..TAU); // Random angle in radians
+    Vec2::new(random_angle.cos(), random_angle.sin()).normalize()
+}
 use crate::components::position::Position;
 use crate::components::carrying_food::CarryingFood;
 use crate::components::reset_lifetime::ResetLifetime;
@@ -12,8 +19,8 @@ use crate::food::Food;
 
 pub struct AntPlugin;
 
-const MIN_LIFETIME: f32 = 30.;
-const MAX_LIFETIME: f32 = 120.;
+const MIN_LIFETIME: f32 = 10.;
+const MAX_LIFETIME: f32 = 50.;
 
 impl Plugin for AntPlugin {
     fn build(&self, app: &mut App) {
@@ -105,9 +112,9 @@ pub fn follow_pheromones_system(
     nest_pheromones: Res<crate::pheromones::PheromoneGrid<crate::pheromones::Nest>>,
 ) {
 
-    const VIEW_ANGLE: f32 = 1.0; // in degrees
+    const VIEW_ANGLE: f32 = 45.0; // in degrees
     let mut rng = rand::thread_rng();
-    let view_radius: i32 = rng.gen_range(1..=6);
+    let view_radius: i32 = 6;
 
     for (mut position, mut direction, carrying_food) in query.iter_mut() {
         let pheromone_grid: &dyn PheromoneGridTrait = if carrying_food.is_some() {
@@ -119,7 +126,7 @@ pub fn follow_pheromones_system(
         let mut best_direction = direction.direction;
         let mut max_pheromone = 0.0;
 
-        for angle in (-VIEW_ANGLE as i32..=VIEW_ANGLE as i32).step_by(5) {
+        for angle in (-VIEW_ANGLE as i32..=VIEW_ANGLE as i32).step_by(1) {
             let angle_rad = (angle as f32).to_radians();
             let rotated_direction = rotate_vector(direction.direction, angle_rad.to_degrees());
 
@@ -141,7 +148,9 @@ pub fn follow_pheromones_system(
         } else {
             direction.direction = best_direction.normalize();
         }
-        position.position += direction.direction;
+        // Add some randomness to the direction
+        let random_offset: Vec2 = random_normalized_direction() * rng.gen_range(0.0..0.6);
+        position.position += (direction.direction + random_offset).normalize();
 
         let window = window_query.get_single().unwrap();
         position.position.x = position.position.x.rem_euclid(window.width());

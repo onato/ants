@@ -8,8 +8,8 @@ use crate::systems::setup_pheromone_texture::setup_pheromone_texture;
 use std::marker::PhantomData;
 
 // Constants
-const PHEROMONE_DECAY_RATE: f32 = 0.9999;
-const BLUR_INTERVAL: f32 = 1.0; // Blur every 3 seconds
+const PHEROMONE_DECAY_RATE: f32 = 0.99999;
+const BLUR_INTERVAL: f32 = 1000000000.0; // Blur every 3 seconds
 const PHEROMONE_INCREMENT: f32 = 0.05;
 const FOOD_PHEROMONE_INCREMENT: f32 = 0.05; // 5 times stronger for Food pheromone
 
@@ -107,7 +107,7 @@ impl PheromoneTypeInfo for Nest {
     type QueryFilter = (With<Ant>, Without<CarryingFood>);
     
     fn color() -> PheromoneColor {
-        PheromoneColor { r: 255, g: 106, b: 00, a: 255 }
+        PheromoneColor { r: 0, g: 0, b: 0, a: 255 }
     }
 }
 
@@ -116,7 +116,7 @@ impl PheromoneTypeInfo for Food {
     type QueryFilter = (With<Ant>, With<CarryingFood>);
     
     fn color() -> PheromoneColor {
-        PheromoneColor { r: 0, g: 255, b: 0, a: 255 } // Green for food pheromones
+        PheromoneColor { r: 20, g: 100, b: 20, a: 255 } // Green for food pheromones
     }
 }
 

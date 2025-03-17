@@ -27,11 +27,18 @@ fn setup_food(
     let circle_material = materials.add(Color::srgb(0.0, 0.4, 1.0));
     let circle_mesh = meshes.add(Circle::new(5.0));
     
-    commands.spawn((
-        Food,
-        Position { position: Vec2::new((width as f32) / 2., (height as f32) / 2.) },
-        Mesh2d(circle_mesh.clone()),
-        MeshMaterial2d(circle_material.clone()),
-        Transform::from_xyz(0., 0., 0.0),
-    ));
+    let num_foods = 10;
+    let spacing = width / (num_foods as f32 + 1.0);
+    let y_position = height / 2.0;
+
+    for i in 1..=num_foods {
+        let x_position = spacing * i as f32;
+        commands.spawn((
+            Food,
+            Position { position: Vec2::new(x_position, y_position) },
+            Mesh2d(circle_mesh.clone()),
+            MeshMaterial2d(circle_material.clone()),
+            Transform::from_xyz(0., 0., 0.0),
+        ));
+    }
 }
