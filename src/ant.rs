@@ -14,8 +14,8 @@ use crate::utils::geometry::*;
 
 pub struct AntPlugin;
 
-const MIN_LIFETIME: f32 = 6.;
-const MAX_LIFETIME: f32 = 37.;
+const MIN_LIFETIME: f32 = 24.;
+const MAX_LIFETIME: f32 = 99.;
 
 impl Plugin for AntPlugin {
     fn build(&self, app: &mut App) {

@@ -18,7 +18,7 @@ fn main() {
                     primary_window: Some(Window {
                         title: String::from("Ants"),
                         position: WindowPosition::At(IVec2::ZERO),
-                        resolution: Vec2::new(1024., 768.).into(),
+                        resolution: Vec2::new(1728., 1050.).into(),
                         resizable: false,
                         ..Default::default()
                     }),
