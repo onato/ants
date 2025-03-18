@@ -46,7 +46,7 @@ pub fn setup_pheromone_texture<T: Send + Sync + 'static>(
             custom_size: Some(Vec2::new(width, height)), // Match texture size
             ..Default::default()
         },
-        Transform::from_xyz(width / 2.0, height / 2.0, -1.0), // Lower Z index
+        Transform::from_xyz(width / 2.0, height / 2.0, -2.0), // Lower Z index
         Visibility::Visible,
         InheritedVisibility::default(),
     ));
@@ -55,7 +55,7 @@ pub fn setup_pheromone_texture<T: Send + Sync + 'static>(
     let entity = commands.spawn((
         Sprite::from_image(texture_handle.clone()),
         Transform {
-            translation: Vec3::new((width as f32) / 2., (height as f32) / 2., 0.0),
+            translation: Vec3::new((width as f32) / 2., (height as f32) / 2., -1.0),
             scale: Vec3::ONE,
             ..default()
         },

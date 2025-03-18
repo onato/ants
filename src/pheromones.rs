@@ -9,7 +9,7 @@ use std::marker::PhantomData;
 
 // Constants
 const PHEROMONE_DECAY_RATE: f32 = 0.99999;
-const PHEROMONE_INCREMENT: f32 = 0.03;
+const PHEROMONE_INCREMENT: f32 = 0.02;
 const FOOD_PHEROMONE_INCREMENT: f32 = 0.05; // 5 times stronger for Food pheromone
 
 // Pheromone types
