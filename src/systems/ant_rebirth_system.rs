@@ -1,5 +1,5 @@
 use bevy::prelude::*;
-use crate::ant::Ant;
+use crate::components::ant::Ant;
 use crate::components::position::Position;
 use crate::components::reset_lifetime::ResetLifetime;
 

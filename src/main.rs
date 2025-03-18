@@ -1,4 +1,5 @@
 use bevy::prelude::*;
+use bevy::diagnostic::{DiagnosticsStore, FrameTimeDiagnosticsPlugin};
 
 pub mod ant;
 pub mod food;
@@ -10,6 +11,7 @@ pub mod utils;
 
 fn main() {
     App::new()
+        .add_plugins(FrameTimeDiagnosticsPlugin)
         .add_plugins(
             (
                 //list of plugins added to the game
@@ -30,5 +32,15 @@ fn main() {
             ),
             
         )
+        .add_systems(Update, print_fps)
         .run();
 }
+
+fn print_fps(diagnostics: Res<DiagnosticsStore>) {
+    if let Some(fps) = diagnostics.get(&FrameTimeDiagnosticsPlugin::FPS) {
+        if let Some(average) = fps.smoothed() {
+            println!("FPS: {:.1}", average);
+        }
+    }
+}
+

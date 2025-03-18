@@ -1,6 +1,7 @@
 use bevy::prelude::*;
 use crate::components::position::Position;
 use bevy::window::PrimaryWindow;
+use crate::components::food::Food;
 
 pub struct FoodPlugin;
 
@@ -11,8 +12,6 @@ impl Plugin for FoodPlugin {
     }
 }
 
-#[derive(Component)]
-pub struct Food;
 
 fn setup_food(
     mut commands: Commands,

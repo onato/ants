@@ -3,7 +3,7 @@ use bevy::window::PrimaryWindow;
 use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
 use crate::components::position::Position;
 use crate::components::carrying_food::CarryingFood;
-use crate::ant::Ant;
+use crate::components::ant::Ant;
 use crate::systems::setup_pheromone_texture::setup_pheromone_texture;
 use std::marker::PhantomData;
 

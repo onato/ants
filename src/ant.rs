@@ -1,21 +1,18 @@
 use bevy::prelude::*;
-use bevy::window::PrimaryWindow;
 use rand::Rng;
 use std::time::Duration;
 use std::f32::consts::TAU;
 use bevy::math::Vec2;
-use crate::components::position::Position;
+use crate::components::ant::Ant;
 use crate::components::carrying_food::CarryingFood;
-use crate::components::reset_lifetime::ResetLifetime;
-use crate::pheromones::PheromoneGridTrait;
+use crate::components::direction::Direction;
+use crate::components::food::Food;
+use crate::components::position::Position;
 use crate::systems::ant_rebirth_system::ant_rebirth_system;
-use crate::food::Food;
-use crate::utils::geometry::*;
+use crate::systems::ant_lifetime_reset_system::{MIN_LIFETIME, MAX_LIFETIME, ant_lifetime_reset_system};
+use crate::systems::follow_pheromone_system::follow_pheromones_system;
 
 pub struct AntPlugin;
-
-const MIN_LIFETIME: f32 = 24.;
-const MAX_LIFETIME: f32 = 99.;
 
 impl Plugin for AntPlugin {
     fn build(&self, app: &mut App) {
@@ -31,22 +28,12 @@ impl Plugin for AntPlugin {
     }
 }
 
-#[derive(Component)]
-pub struct Ant {
-    pub lifetime: Timer,
-}
-
-#[derive(Component)]
-pub struct Direction {
-    pub direction: Vec2,
-}
-
 fn setup(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
 ) {
-    for _ in 0..500 {
+    for _ in 0..5000 {
         let mut rng = rand::thread_rng();
         // Random lifetime between 30 and 60 seconds
         let lifetime_secs = rng.gen_range(MIN_LIFETIME..=MAX_LIFETIME);
@@ -55,7 +42,7 @@ fn setup(
         
         commands.spawn((
             Mesh2d(meshes.add(Rectangle::new(3., 3.))),
-            MeshMaterial2d(materials.add(Color::srgb(0. as f32, 0. as f32, 0.0 as f32))),
+            MeshMaterial2d(materials.add(Color::srgb(0.65, 0.145, 0.145))),
             Transform::from_xyz( 0., 0., 0.,),
             Ant { 
                 lifetime: Timer::new(Duration::from_secs_f32(lifetime_secs), TimerMode::Once),
@@ -99,74 +86,6 @@ pub fn ant_goal_system(
     }
 }
 
-// System for ant movement based on pheromone trails
-pub fn follow_pheromones_system(
-    mut query: Query<(&mut Position, &mut Direction, Option<&CarryingFood>), With<Ant>>,
-    window_query: Query<&Window, With<PrimaryWindow>>,
-    food_pheromones: Res<crate::pheromones::PheromoneGrid<crate::pheromones::Food>>,
-    nest_pheromones: Res<crate::pheromones::PheromoneGrid<crate::pheromones::Nest>>,
-) {
-
-    const VIEW_ANGLE: f32 = 45.0; // in degrees
-    let mut rng = rand::thread_rng();
-    let view_radius: i32 = 6;
-
-    for (mut position, mut direction, carrying_food) in query.iter_mut() {
-        let pheromone_grid: &dyn PheromoneGridTrait = if carrying_food.is_some() {
-            &*nest_pheromones
-        } else {
-            &*food_pheromones
-        };
-
-        let mut best_direction = direction.direction;
-        let mut max_pheromone = 0.0;
-
-        for angle in (-VIEW_ANGLE as i32..=VIEW_ANGLE as i32).step_by(1) {
-            let angle_rad = (angle as f32).to_radians();
-            let rotated_direction = rotate_vector(direction.direction, angle_rad.to_degrees());
-
-            for dist in 1..=view_radius as i32 {
-                let check_position = position.position + rotated_direction * dist as f32;
-                let pheromone_value = get_pheromone_value(check_position, pheromone_grid);
-
-                if pheromone_value > max_pheromone {
-                    max_pheromone = pheromone_value;
-                    best_direction = rotated_direction;
-                }
-            }
-        }
-
-        if max_pheromone == 0.0 {
-            // If no pheromone is found, move randomly within VIEW_ANGLE
-            let random_angle_rad: f32 = rng.gen_range((-VIEW_ANGLE/2.)..=VIEW_ANGLE/2.);
-            direction.direction = rotate_vector(direction.direction, random_angle_rad).normalize();
-        } else {
-            direction.direction = best_direction.normalize();
-        }
-        // Add some randomness to the direction
-        let random_offset: Vec2 = random_normalized_direction() * rng.gen_range(0.0..0.8);
-        position.position += (direction.direction + random_offset).normalize();
-
-        let window = window_query.get_single().unwrap();
-        position.position.x = position.position.x.rem_euclid(window.width());
-        position.position.y = position.position.y.rem_euclid(window.height());
-    }
-}
-
-// System to handle resetting ant lifetimes
-pub fn ant_lifetime_reset_system(
-    mut commands: Commands,
-    mut ant_query: Query<(Entity, &mut Ant), With<ResetLifetime>>,
-) {
-    for (entity, mut ant) in ant_query.iter_mut() {
-        let mut rng = rand::thread_rng();
-        let new_lifetime = rng.gen_range(MIN_LIFETIME..=MAX_LIFETIME);
-        ant.lifetime = Timer::new(Duration::from_secs_f32(new_lifetime), TimerMode::Once);
-            
-        commands.entity(entity).remove::<ResetLifetime>();
-    }
-}
-
 fn sync_transform_with_position(
     mut query: Query<(&Position, &mut Transform)>,
 ) {
@@ -175,12 +94,3 @@ fn sync_transform_with_position(
     }
 }
 
-// Helper function to get pheromone value at a position
-fn get_pheromone_value(
-    position: Vec2, 
-    pheromone_grid: &dyn PheromoneGridTrait
-) -> f32 {
-    let x = position.x as usize % pheromone_grid.get_width();
-    let y = position.y as usize % pheromone_grid.get_height();
-    pheromone_grid.get_grid()[x][y]
-}
