@@ -5,6 +5,7 @@ use crate::components::position::Position;
 use crate::components::carrying_food::CarryingFood;
 use crate::components::ant::Ant;
 use crate::systems::setup_pheromone_texture::setup_pheromone_texture;
+use rayon::prelude::*;
 use std::marker::PhantomData;
 
 // Constants
@@ -157,12 +158,11 @@ fn update_pheromone_grid<T: Send + Sync + 'static + PheromoneTypeInfo + Pheromon
         let new_value = (current_value + T::increment()).min(1.0);
         grid_inner.grid[grid_x][grid_y] = new_value;
     }
-    
-    for x in 0..grid_inner.width {
-        for y in 0..grid_inner.height {
-            grid_inner.grid[x][y] *= PHEROMONE_DECAY_RATE;
-        }
-    }
+
+    grid_inner.grid.par_iter_mut().for_each(|row| {
+        row.iter_mut()
+            .for_each(|value| *value *= PHEROMONE_DECAY_RATE);
+    });
 }
 
 // Helper struct to define pheromone color channels
