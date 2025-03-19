@@ -1,12 +1,12 @@
+use crate::components::ant::Ant;
+use crate::components::carrying_food::CarryingFood;
+use crate::components::direction::Direction;
+use crate::components::position::Position;
+use crate::pheromones::PheromoneGridTrait;
+use crate::utils::geometry::*;
 use bevy::prelude::*;
 use bevy::window::PrimaryWindow;
 use rand::Rng;
-use crate::components::ant::Ant;
-use crate::components::position::Position;
-use crate::components::carrying_food::CarryingFood;
-use crate::components::direction::Direction;
-use crate::pheromones::PheromoneGridTrait;
-use crate::utils::geometry::*;
 
 pub fn follow_pheromones_system(
     mut query: Query<(&mut Position, &mut Direction, Option<&CarryingFood>), With<Ant>>,
@@ -14,7 +14,6 @@ pub fn follow_pheromones_system(
     food_pheromones: Res<crate::pheromones::PheromoneGrid<crate::pheromones::Food>>,
     nest_pheromones: Res<crate::pheromones::PheromoneGrid<crate::pheromones::Nest>>,
 ) {
-
     const VIEW_ANGLE: f32 = 45.0; // in degrees
     let mut rng = rand::thread_rng();
     let view_radius: i32 = 6;
@@ -33,7 +32,7 @@ pub fn follow_pheromones_system(
             let angle_rad = (angle as f32).to_radians();
             let rotated_direction = rotate_vector(direction.direction, angle_rad.to_degrees());
 
-            for dist in 1..=view_radius as i32 {
+            for dist in 1..=view_radius {
                 let check_position = position.position + rotated_direction * dist as f32;
                 let pheromone_value = get_pheromone_value(check_position, pheromone_grid);
 
@@ -46,7 +45,7 @@ pub fn follow_pheromones_system(
 
         if max_pheromone == 0.0 {
             // If no pheromone is found, move randomly within VIEW_ANGLE
-            let random_angle_rad: f32 = rng.gen_range((-VIEW_ANGLE/2.)..=VIEW_ANGLE/2.);
+            let random_angle_rad: f32 = rng.gen_range((-VIEW_ANGLE / 2.)..=VIEW_ANGLE / 2.);
             direction.direction = rotate_vector(direction.direction, random_angle_rad).normalize();
         } else {
             direction.direction = best_direction.normalize();
@@ -62,10 +61,7 @@ pub fn follow_pheromones_system(
 }
 
 // Helper function to get pheromone value at a position
-fn get_pheromone_value(
-    position: Vec2, 
-    pheromone_grid: &dyn PheromoneGridTrait
-) -> f32 {
+fn get_pheromone_value(position: Vec2, pheromone_grid: &dyn PheromoneGridTrait) -> f32 {
     let x = position.x as usize % pheromone_grid.get_width();
     let y = position.y as usize % pheromone_grid.get_height();
     pheromone_grid.get_grid()[x][y]

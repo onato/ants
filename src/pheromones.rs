@@ -1,10 +1,10 @@
-use bevy::prelude::*;
-use bevy::window::PrimaryWindow;
-use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
-use crate::components::position::Position;
-use crate::components::carrying_food::CarryingFood;
 use crate::components::ant::Ant;
+use crate::components::carrying_food::CarryingFood;
+use crate::components::position::Position;
 use crate::systems::setup_pheromone_texture::setup_pheromone_texture;
+use bevy::prelude::*;
+use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
+use bevy::window::PrimaryWindow;
 use rayon::prelude::*;
 use std::marker::PhantomData;
 
@@ -30,21 +30,26 @@ pub struct PheromonePlugin;
 
 impl Plugin for PheromonePlugin {
     fn build(&self, app: &mut App) {
-        app
-            .init_resource::<PheromoneGrid<Nest>>()
+        app.init_resource::<PheromoneGrid<Nest>>()
             .init_resource::<PheromoneGrid<Food>>()
-            .add_systems(Startup, (
-                setup_pheromone_grid::<Nest>, 
-                setup_pheromone_grid::<Food>,
-                setup_pheromone_texture::<Nest>,
-                setup_pheromone_texture::<Food>
-            ))
-            .add_systems(Update, (
-                update_pheromone_grid::<Nest>, 
-                update_pheromone_grid::<Food>,
-                update_pheromone_texture::<Nest>,
-                update_pheromone_texture::<Food>
-            ));
+            .add_systems(
+                Startup,
+                (
+                    setup_pheromone_grid::<Nest>,
+                    setup_pheromone_grid::<Food>,
+                    setup_pheromone_texture::<Nest>,
+                    setup_pheromone_texture::<Food>,
+                ),
+            )
+            .add_systems(
+                Update,
+                (
+                    update_pheromone_grid::<Nest>,
+                    update_pheromone_grid::<Food>,
+                    update_pheromone_texture::<Nest>,
+                    update_pheromone_texture::<Food>,
+                ),
+            );
     }
 }
 
@@ -85,10 +90,10 @@ fn setup_pheromone_grid<T: Send + Sync + 'static>(
     let window = window_query.get_single().unwrap();
     let width = window.width() as usize;
     let height = window.height() as usize;
-    
+
     // Initialize the grid with zeros
     let grid = vec![vec![0.0; height]; width];
-    
+
     let grid_inner = pheromone_grid.into_inner();
     grid_inner.grid = grid;
     grid_inner.width = width;
@@ -104,18 +109,28 @@ trait PheromoneTypeInfo: Send + Sync {
 // Implement for Nest type
 impl PheromoneTypeInfo for Nest {
     type QueryFilter = (With<Ant>, Without<CarryingFood>);
-    
+
     fn color() -> PheromoneColor {
-        PheromoneColor { r: 0, g: 0, b: 0, a: 255 }
+        PheromoneColor {
+            r: 0,
+            g: 0,
+            b: 0,
+            a: 255,
+        }
     }
 }
 
 // Implement for Food type
 impl PheromoneTypeInfo for Food {
     type QueryFilter = (With<Ant>, With<CarryingFood>);
-    
+
     fn color() -> PheromoneColor {
-        PheromoneColor { r: 20, g: 100, b: 20, a: 255 } // Green for food pheromones
+        PheromoneColor {
+            r: 20,
+            g: 100,
+            b: 20,
+            a: 255,
+        } // Green for food pheromones
     }
 }
 
@@ -144,15 +159,13 @@ fn update_pheromone_grid<T: Send + Sync + 'static + PheromoneTypeInfo + Pheromon
     ant_query: Query<&Position, T::QueryFilter>,
 ) {
     let grid_inner = pheromone_grid.into_inner();
-    
+
     // Increase pheromone level at each ant's position
     for position in ant_query.iter() {
         // Convert world coordinates to grid coordinates
-        let grid_x = (position.position.x as usize)
-            .clamp(0, grid_inner.width.saturating_sub(1));
-        let grid_y = (position.position.y as usize)
-            .clamp(0, grid_inner.height.saturating_sub(1));
-        
+        let grid_x = (position.position.x as usize).clamp(0, grid_inner.width.saturating_sub(1));
+        let grid_y = (position.position.y as usize).clamp(0, grid_inner.height.saturating_sub(1));
+
         // Increase pheromone level at this position
         let current_value = grid_inner.grid[grid_x][grid_y];
         let new_value = (current_value + T::increment()).min(1.0);
@@ -184,38 +197,38 @@ fn update_pheromone_texture<T: Send + Sync + 'static + PheromoneTypeInfo>(
     let window = window_query.get_single().unwrap();
     let width = window.width() as u32;
     let height = window.height() as u32;
-    
+
     // Get the color for this pheromone type
     let color = T::color();
-    
+
     // Create a new image with the current pheromone data
     let mut data = vec![0u8; (width * height * 4) as usize];
-    
+
     let grid_inner = pheromone_grid.into_inner();
-    
+
     // Fill the texture data based on the grid values
     for y in 0..grid_inner.height.min(height as usize) {
         for x in 0..grid_inner.width.min(width as usize) {
             // Get the pheromone value at this position
             let pheromone_value = grid_inner.grid[x][y];
-            
+
             // Convert to a color intensity based on pheromone level
             let intensity = (pheromone_value * 255.0).min(255.0) as u8;
-            
+
             // Calculate the pixel index in the texture data
             // Flip y-coordinate to match screen coordinates (0,0 at top-left)
             let pixel_index = (((height as usize - 1 - y) as u32 * width + x as u32) * 4) as usize;
-            
+
             // Set the pixel color (RGBA) with the specified color channels
             if pixel_index + 3 < data.len() {
-                data[pixel_index] = (color.r as u16 * intensity as u16 / 255) as u8;       // R
-                data[pixel_index + 1] = (color.g as u16 * intensity as u16 / 255) as u8;   // G
-                data[pixel_index + 2] = (color.b as u16 * intensity as u16 / 255) as u8;   // B
-                data[pixel_index + 3] = (color.a as u16 * intensity as u16 / 255) as u8;   // A
+                data[pixel_index] = (color.r as u16 * intensity as u16 / 255) as u8; // R
+                data[pixel_index + 1] = (color.g as u16 * intensity as u16 / 255) as u8; // G
+                data[pixel_index + 2] = (color.b as u16 * intensity as u16 / 255) as u8; // B
+                data[pixel_index + 3] = (color.a as u16 * intensity as u16 / 255) as u8; // A
             }
         }
     }
-    
+
     // Create a new texture with the updated data
     let mut new_texture = Image::new_fill(
         Extent3d {
@@ -228,14 +241,17 @@ fn update_pheromone_texture<T: Send + Sync + 'static + PheromoneTypeInfo>(
         TextureFormat::Rgba8Unorm,
         bevy::render::render_asset::RenderAssetUsages::RENDER_WORLD,
     );
-    
+
     // Set texture properties
-    new_texture.texture_descriptor.usage = bevy::render::render_resource::TextureUsages::TEXTURE_BINDING
-        | bevy::render::render_resource::TextureUsages::COPY_DST;
-    
+    new_texture.texture_descriptor.usage =
+        bevy::render::render_resource::TextureUsages::TEXTURE_BINDING
+            | bevy::render::render_resource::TextureUsages::COPY_DST;
+
     // Add the new texture to assets and update the sprite
     if let Some(entity) = grid_inner.texture_entity {
         let new_handle = images.add(new_texture);
-        commands.entity(entity).insert(Sprite::from_image(new_handle));
+        commands
+            .entity(entity)
+            .insert(Sprite::from_image(new_handle));
     }
 }

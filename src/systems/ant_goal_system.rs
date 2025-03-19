@@ -1,8 +1,8 @@
-use bevy::prelude::*;
 use crate::components::ant::Ant;
-use crate::components::position::Position;
 use crate::components::carrying_food::CarryingFood;
 use crate::components::food::Food;
+use crate::components::position::Position;
+use bevy::prelude::*;
 
 pub fn ant_goal_system(
     mut commands: Commands,
@@ -18,17 +18,17 @@ pub fn ant_goal_system(
     for (entity, position, carrying_food) in query.iter_mut() {
         if carrying_food.is_none() {
             // Check if ant found food
-            let found_food = food_positions.iter().any(|&food_pos| 
-                food_pos.distance(position.position) < 5.0
-            );
-            
+            let found_food = food_positions
+                .iter()
+                .any(|&food_pos| food_pos.distance(position.position) < 5.0);
+
             if found_food {
                 commands.entity(entity).insert(CarryingFood);
             }
         } else {
             // Check if ant reached the nest
             let reached_nest = position.position.length() < 10.0;
-            
+
             if reached_nest {
                 // Change goal back to finding food
                 commands.entity(entity).remove::<CarryingFood>();
@@ -36,4 +36,3 @@ pub fn ant_goal_system(
         }
     }
 }
-
