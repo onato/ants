@@ -36,3 +36,46 @@ pub fn ant_goal_system(
         }
     }
 }
+
+#[test]
+fn ant_carries_food_when_touching_food() {
+    let mut app = App::new();
+    app.add_systems(Update, ant_goal_system);
+    let position = Vec2::new(100., 100.);
+    add_ant_at_position(position, app.world_mut(), false);
+    app.world_mut().spawn((Food, Position { position }));
+
+    app.update();
+
+    assert_eq!(food_carrying_ants_count(app.world_mut()), 1);
+}
+
+#[test]
+fn ant_drops_food_when_touching_nest() {
+    let mut app = App::new();
+    app.add_systems(Update, ant_goal_system);
+    add_ant_at_position(Vec2::new(9., 0.), app.world_mut(), true);
+
+    app.update();
+
+    assert_eq!(food_carrying_ants_count(app.world_mut()), 0);
+}
+
+#[cfg(test)]
+fn food_carrying_ants_count(world: &mut World) -> usize {
+    world.query::<(&Ant, &CarryingFood)>().iter(world).count()
+}
+
+#[cfg(test)]
+fn add_ant_at_position(position: Vec2, world: &mut World, carrying_food: bool) {
+    let mut entity = world.spawn((
+        Ant {
+            lifetime: Timer::new(std::time::Duration::from_secs_f32(100.), TimerMode::Once),
+        },
+        Position { position },
+    ));
+
+    if carrying_food {
+        entity.insert(CarryingFood);
+    }
+}
